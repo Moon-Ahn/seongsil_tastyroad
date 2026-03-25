@@ -1,30 +1,35 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Star, MapPin, Utensils, Plus, Search,
   MessageSquare, X, Loader2, Map as MapIcon, Church
 } from 'lucide-react';
 
-// 팀장님의 구글 앱스 스크립트 URL을 넣어주세요
+// 🌟 팀장님의 구글 앱스 스크립트 URL
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxdChOl5CumYzkX-rjai2BpD91BQBH193NrKLL2RRIvxGKJFRx0_Si0zIFM_BClJA5M/exec";
 
 const App = () => {
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // 1) 초기 선택값을 null로 두어, 처음엔 무조건 교회 지도가 보이도록 설정합니다.
   const [selectedRes, setSelectedRes] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
+  // 직접 입력 방식으로 롤백
   const [newRes, setNewRes] = useState({ name: '', category: '한식', address: '' });
   const [newReview, setNewReview] = useState({ rating: 5, comment: '', author: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const searchInputRef = useRef(null);
+  // 구글 지도 제어를 위한 Ref
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+  const markersRef = useRef([]);
+  const geocodeCache = useRef({}); // 주소->좌표 변환 캐시 (속도 향상 및 오류 방지)
 
-  // 데이터 불러오기
+  const CHURCH_ADDRESS = "서울 강북구 노해로 50";
+
+  // 1. 데이터 불러오기
   const fetchRestaurants = async () => {
     try {
       const response = await fetch(SCRIPT_URL);
@@ -58,7 +63,6 @@ const App = () => {
       });
 
       setRestaurants(processedList);
-      // 🌟 데이터 로딩 후 강제로 첫 번째 식당을 선택하지 않고 null 유지 (교회 화면 고정)
     } catch (e) {
       console.error("데이터 로딩 실패", e);
     } finally {
@@ -68,36 +72,97 @@ const App = () => {
 
   useEffect(() => { fetchRestaurants(); }, []);
 
-  // 3) 새 맛집 제보 시 구글 검색 버그 수정
+  // 🌟 주소를 좌표로 변환해주는 헬퍼 함수
+  const getCoordinates = (address, callback) => {
+    if (geocodeCache.current[address]) {
+      callback(geocodeCache.current[address]);
+      return;
+    }
+    if (!window.google) return;
+
+    const geocoder = new window.google.maps.Geocoder();
+    geocoder.geocode({ address: address }, (results, status) => {
+      if (status === "OK") {
+        geocodeCache.current[address] = results[0].geometry.location;
+        callback(results[0].geometry.location);
+      }
+    });
+  };
+
+  // 🌟 구글 지도 초기화 및 마커 렌더링
   useEffect(() => {
-    if (isAddModalOpen && searchInputRef.current && window.google) {
-      const autocomplete = new window.google.maps.places.Autocomplete(searchInputRef.current, {
-        fields: ['name', 'formatted_address', 'geometry'], // 필요한 데이터만 정확히 요청
-        componentRestrictions: { country: 'kr' }
+    if (loading || !window.google || !mapRef.current) return;
+
+    // 1) 지도 최초 생성 (기본 식당들 숨기기 스타일 적용)
+    if (!mapInstance.current) {
+      mapInstance.current = new window.google.maps.Map(mapRef.current, {
+        zoom: 16,
+        mapTypeControl: false,
+        streetViewControl: false,
+        styles: [
+          { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }, // 기본 장소 숨기기
+          { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] } // 버스/지하철역 이름 숨기기
+        ]
       });
 
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-
-        // 사용자가 드롭다운을 클릭하지 않고 타이핑 후 엔터만 친 경우 (undefined 방지)
-        if (!place.geometry || !place.formatted_address) {
-          alert("아래에 나타나는 구글 지도 자동완성 목록을 마우스로 클릭해서 선택해주세요!");
-          return;
-        }
-
-        setNewRes(prev => ({
-          ...prev,
-          name: place.name,
-          address: place.formatted_address.replace("대한민국 ", "") // 주소 깔끔하게 정리
-        }));
+      // 교회 마커 고정 추가 (파란색 핀)
+      getCoordinates(CHURCH_ADDRESS, (location) => {
+        mapInstance.current.setCenter(location);
+        new window.google.maps.Marker({
+          map: mapInstance.current,
+          position: location,
+          title: "수유 성실교회",
+          icon: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+        });
       });
     }
-  }, [isAddModalOpen]);
+
+    // 2) 기존 식당 마커 초기화
+    markersRef.current.forEach(m => m.setMap(null));
+    markersRef.current = [];
+
+    // 3) 우리가 저장한 맛집만 오렌지색 마커로 추가
+    restaurants.forEach(res => {
+      getCoordinates(res.address, (location) => {
+        const marker = new window.google.maps.Marker({
+          map: mapInstance.current,
+          position: location,
+          title: res.name,
+          icon: "http://maps.google.com/mapfiles/ms/icons/orange-dot.png"
+        });
+
+        // 마커 클릭 시 리스트에서도 해당 식당 선택되도록 연동
+        marker.addListener("click", () => {
+          setSelectedRes(res);
+        });
+
+        markersRef.current.push(marker);
+      });
+    });
+  }, [loading, restaurants]);
+
+  // 🌟 리스트에서 식당 클릭 시 지도 이동시키기
+  useEffect(() => {
+    if (!mapInstance.current) return;
+
+    if (selectedRes) {
+      getCoordinates(selectedRes.address, (location) => {
+        mapInstance.current.panTo(location); // 부드럽게 이동
+        mapInstance.current.setZoom(18); // 확 땡겨서 보여줌
+      });
+    } else {
+      getCoordinates(CHURCH_ADDRESS, (location) => {
+        mapInstance.current.panTo(location);
+        mapInstance.current.setZoom(16);
+      });
+    }
+  }, [selectedRes]);
 
   const filteredList = restaurants.filter(r =>
     r.name.includes(searchQuery) || r.address.includes(searchQuery)
   );
 
+  // 리뷰 제출
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -125,12 +190,9 @@ const App = () => {
     }
   };
 
+  // 새 식당 등록 (직접 타이핑)
   const handleAddRestaurant = async (e) => {
     e.preventDefault();
-    if (!newRes.name || !newRes.address) {
-      alert("검색창에서 식당을 먼저 선택해주세요.");
-      return;
-    }
     setIsSubmitting(true);
 
     const initialReview = {
@@ -147,7 +209,7 @@ const App = () => {
     };
 
     setRestaurants([newRestaurantData, ...restaurants]);
-    setSelectedRes(newRestaurantData); // 🌟 추가 직후 지도를 해당 식당으로 이동
+    setSelectedRes(newRestaurantData);
 
     try {
       await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(initialReview) });
@@ -159,14 +221,6 @@ const App = () => {
       setNewReview({ rating: 5, comment: '', author: '' });
     }
   };
-
-  // 🌟 1) 지도 URL 결정 로직 (selectedRes가 없으면 수유 성실교회)
-  const mapQuery = selectedRes
-    ? `${selectedRes.name} ${selectedRes.address}`
-    : "수유 성실교회 서울특별시 강북구 노해로 50";
-
-  // 구글 맵 표준 임베드 URL 형식으로 수정 (2번 해결: 클릭 시 지도 정확히 이동)
-  const mapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&t=&z=16&ie=UTF8&iwloc=&output=embed`;
 
   if (loading) return <div className="h-screen flex items-center justify-center text-orange-500 font-bold"><Loader2 className="animate-spin mr-2"/> 맛집 지도를 불러오는 중...</div>;
 
@@ -181,23 +235,17 @@ const App = () => {
           <h1 className="text-xl font-black tracking-tight">성실 맛집 <span className="text-orange-500">Map</span></h1>
         </div>
         <button onClick={() => setIsAddModalOpen(true)} className="bg-slate-900 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 hover:bg-slate-800 transition">
-          <Plus size={16} /> 맛집 추가하기
+          <Plus size={16} /> 맛집 수동 등록
         </button>
       </header>
 
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
 
-        {/* 왼쪽: 지도 (수유 성실교회 또는 선택한 맛집) */}
-        <section className="lg:w-1/2 h-1/2 lg:h-full bg-slate-200 relative border-r border-slate-200">
-          <iframe
-            width="100%"
-            height="100%"
-            style={{ border: 0 }}
-            src={mapUrl}
-            title="Restaurant Map"
-          ></iframe>
+        {/* 🗺️ 왼쪽: 커스텀 구글 맵 영역 */}
+        <section className="lg:w-1/2 h-1/2 lg:h-full relative border-r border-slate-200 bg-slate-200">
+          {/* 구글 지도가 그려질 도화지 */}
+          <div ref={mapRef} className="w-full h-full" />
 
-          {/* 하단 플로팅 버튼 (선택된 식당이 있을 때만 표시) */}
           {selectedRes && (
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2">
               <a
@@ -212,7 +260,7 @@ const App = () => {
           )}
         </section>
 
-        {/* 오른쪽: 리스트 및 상세 리뷰 */}
+        {/* 📝 오른쪽: 리스트 및 상세 리뷰 */}
         <section className="lg:w-1/2 h-1/2 lg:h-full flex flex-col bg-white">
           <div className="p-4 border-b border-slate-100 shrink-0 bg-slate-50">
             <div className="relative">
@@ -227,8 +275,15 @@ const App = () => {
           </div>
 
           <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-            {/* 리스트 */}
             <div className="lg:w-2/5 border-r border-slate-100 overflow-y-auto custom-scrollbar p-2 space-y-2">
+              <button
+                onClick={() => setSelectedRes(null)}
+                className={`w-full text-left p-4 rounded-xl border-2 transition ${!selectedRes ? 'bg-blue-50 border-blue-400' : 'bg-white border-transparent hover:bg-slate-50'}`}
+              >
+                <h3 className="font-bold text-blue-900 truncate">수유 성실교회</h3>
+                <p className="text-xs text-blue-500 mt-1">우리들의 베이스캠프</p>
+              </button>
+
               {filteredList.map(res => (
                 <div
                   key={res.id}
@@ -244,7 +299,6 @@ const App = () => {
               ))}
             </div>
 
-            {/* 상세 내용 */}
             <div className="lg:w-3/5 overflow-y-auto custom-scrollbar p-6 bg-slate-50">
               {selectedRes ? (
                 <>
@@ -273,10 +327,14 @@ const App = () => {
                 </>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-3">
-                  <div className="bg-slate-100 p-4 rounded-full">
-                    <Church size={32} className="text-slate-400" />
+                  <div className="bg-blue-100 p-4 rounded-full">
+                    <Church size={32} className="text-blue-500" />
                   </div>
-                  <p>왼쪽 목록에서 식당을 선택하면<br/>지도와 상세 리뷰가 나타납니다.</p>
+                  <p className="text-center leading-relaxed">
+                    <strong>수유 성실교회</strong>를 중심으로<br/>
+                    청년들의 맛집 지도가 펼쳐집니다.<br/><br/>
+                    왼쪽 목록이나 지도의 핀을 클릭해보세요!
+                  </p>
                 </div>
               )}
             </div>
@@ -284,29 +342,29 @@ const App = () => {
         </section>
       </main>
 
-      {/* 모달: 맛집 추가 */}
+      {/* 모달: 맛집 수동 등록 (직접 타이핑 방식 롤백) */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
           <form onSubmit={handleAddRestaurant} className="bg-white rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl">
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-xl font-black">새 맛집 제보하기</h2>
+              <h2 className="text-xl font-black">새 맛집 직접 등록하기</h2>
               <X className="cursor-pointer text-slate-400" onClick={() => setIsAddModalOpen(false)} />
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-slate-500 ml-1">구글 지도에서 식당 검색</label>
-                <input
-                  ref={searchInputRef}
-                  className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 focus:border-orange-400 outline-none text-sm"
-                  placeholder="예: 엘림들깨수제비 (검색 후 목록에서 클릭!)"
-                />
+                <label className="text-xs font-bold text-slate-500 ml-1">식당 이름</label>
+                <input required className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 focus:border-orange-400 outline-none text-sm" placeholder="예: 엘림들깨수제비" value={newRes.name} onChange={e => setNewRes({...newRes, name: e.target.value})} />
               </div>
-
-              <div className="bg-orange-50 p-3 rounded-xl border border-orange-100">
-                <p className="text-xs text-orange-600 font-bold mb-1">검색된 정보 (자동입력)</p>
-                <p className="text-sm font-bold text-slate-800">{newRes.name || "목록에서 식당을 클릭해주세요"}</p>
-                <p className="text-xs text-slate-500">{newRes.address || ""}</p>
+              <div>
+                <label className="text-xs font-bold text-slate-500 ml-1">도로명 주소 (정확하게 입력해야 지도에 표시됩니다)</label>
+                <input required className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 focus:border-orange-400 outline-none text-sm" placeholder="예: 서울 강북구 삼각산로 67" value={newRes.address} onChange={e => setNewRes({...newRes, address: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 ml-1">카테고리</label>
+                <select className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>
+                  {['한식', '중식', '일식', '양식', '분식', '카페'].map(c => <option key={c}>{c}</option>)}
+                </select>
               </div>
 
               <div className="border-t border-slate-100 pt-3 mt-3">
