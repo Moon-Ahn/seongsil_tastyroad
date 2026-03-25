@@ -1,5 +1,3 @@
-### 🚀 최종 완성본: `App.jsx` 전체 코드
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Star, 
