@@ -4,7 +4,7 @@ import {
   MessageSquare, X, Loader2, Map as MapIcon, Church
 } from 'lucide-react';
 
-// 🌟 팀장님의 구글 앱스 스크립트 URL을 넣어주세요
+// 팀장님의 구글 앱스 스크립트 URL을 넣어주세요
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxdChOl5CumYzkX-rjai2BpD91BQBH193NrKLL2RRIvxGKJFRx0_Si0zIFM_BClJA5M/exec";
 
 const App = () => {
