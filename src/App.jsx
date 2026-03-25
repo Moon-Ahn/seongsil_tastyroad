@@ -20,13 +20,15 @@ const App = () => {
   const [newRes, setNewRes] = useState({ name: '', category: '한식', address: '' });
   const [newReview, setNewReview] = useState({ rating: 5, comment: '', author: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [distances, setDistances] = useState({}); // 🌟 각 식당까지의 거리를 저장할 공간
+
+  // 🌟 각 식당까지의 거리를 저장할 공간
+  const [distances, setDistances] = useState({});
 
   // 구글 지도 제어를 위한 Ref
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const markersRef = useRef([]);
-  const geocodeCache = useRef({}); // 주소->좌표 변환 캐시 (속도 향상 및 오류 방지)
+  const geocodeCache = useRef({}); // 주소->좌표 변환 캐시
 
   const CHURCH_ADDRESS = "서울 강북구 노해로 50";
 
@@ -90,7 +92,7 @@ const App = () => {
     });
   };
 
-  // 🌟 구글 지도 초기화 및 마커 렌더링
+  // 🌟 구글 지도 초기화, 마커 렌더링, 라벨(말풍선) 표시 및 거리 계산
   useEffect(() => {
     if (loading || !window.google || !mapRef.current) return;
 
@@ -105,24 +107,40 @@ const App = () => {
         ]
       });
 
-      // 교회 마커 추가 후, 식당 마커와 거리 계산
+      // 1) 교회 마커 추가 (예쁜 말풍선 포함)
       getCoordinates(CHURCH_ADDRESS, (churchLocation) => {
         mapInstance.current.setCenter(churchLocation);
         new window.google.maps.Marker({
           map: mapInstance.current,
           position: churchLocation,
           title: "수유 성실교회",
-          icon: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+          icon: {
+            url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+            labelOrigin: new window.google.maps.Point(14, -15) // 라벨 위치 위로 조정
+          },
+          label: {
+            text: "수유 성실교회",
+            className: "church-marker-label",
+            fontWeight: "bold"
+          }
         });
 
-        // 🌟 우리가 저장한 맛집 마커 추가 및 거리 계산
+        // 2) 식당 마커 추가 (말풍선 포함) 및 거리 계산
         restaurants.forEach(res => {
           getCoordinates(res.address, (location) => {
             const marker = new window.google.maps.Marker({
               map: mapInstance.current,
               position: location,
               title: res.name,
-              icon: "http://maps.google.com/mapfiles/ms/icons/orange-dot.png"
+              icon: {
+                url: "http://maps.google.com/mapfiles/ms/icons/orange-dot.png",
+                labelOrigin: new window.google.maps.Point(14, -15) // 라벨 위치 위로 조정
+              },
+              label: {
+                text: res.name,
+                className: "restaurant-marker-label",
+                fontWeight: "bold"
+              }
             });
 
             marker.addListener("click", () => {
@@ -130,9 +148,11 @@ const App = () => {
             });
             markersRef.current.push(marker);
 
-            // 🌟 교회와 식당 사이의 직선거리 계산 (무료 API)
-            const dist = window.google.maps.geometry.spherical.computeDistanceBetween(churchLocation, location);
-            setDistances(prev => ({ ...prev, [res.id]: dist }));
+            // 거리 계산 (미터 단위)
+            if (window.google.maps.geometry) {
+               const dist = window.google.maps.geometry.spherical.computeDistanceBetween(churchLocation, location);
+               setDistances(prev => ({ ...prev, [res.id]: dist }));
+            }
           });
         });
       });
@@ -146,7 +166,7 @@ const App = () => {
     if (selectedRes) {
       getCoordinates(selectedRes.address, (location) => {
         mapInstance.current.panTo(location); // 부드럽게 이동
-        mapInstance.current.setZoom(18); // 확 땡겨서 보여줌
+        mapInstance.current.setZoom(17); // 확 땡겨서 보여줌
       });
     } else {
       getCoordinates(CHURCH_ADDRESS, (location) => {
@@ -225,14 +245,14 @@ const App = () => {
   return (
     <div className="h-screen bg-slate-50 font-sans text-slate-900 flex flex-col overflow-hidden">
 
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shrink-0 z-10">
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shrink-0 z-10 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="bg-orange-500 p-2 rounded-xl">
+          <div className="bg-orange-500 p-2 rounded-xl shadow-md">
             <Utensils className="text-white" size={20} />
           </div>
           <h1 className="text-xl font-black tracking-tight">성실 맛집 <span className="text-orange-500">Map</span></h1>
         </div>
-        <button onClick={() => setIsAddModalOpen(true)} className="bg-slate-900 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 hover:bg-slate-800 transition">
+        <button onClick={() => setIsAddModalOpen(true)} className="bg-slate-900 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 hover:bg-slate-800 transition shadow-md">
           <Plus size={16} /> 맛집 수동 등록
         </button>
       </header>
@@ -241,7 +261,6 @@ const App = () => {
 
         {/* 🗺️ 왼쪽: 커스텀 구글 맵 영역 */}
         <section className="lg:w-1/2 h-1/2 lg:h-full relative border-r border-slate-200 bg-slate-200">
-          {/* 구글 지도가 그려질 도화지 */}
           <div ref={mapRef} className="w-full h-full" />
 
           {selectedRes && (
@@ -266,7 +285,7 @@ const App = () => {
               <input
                 type="text"
                 placeholder="맛집 이름이나 주소 검색..."
-                className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 text-sm"
+                className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 text-sm shadow-sm"
                 value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
@@ -276,7 +295,7 @@ const App = () => {
             <div className="lg:w-2/5 border-r border-slate-100 overflow-y-auto custom-scrollbar p-2 space-y-2">
               <button
                 onClick={() => setSelectedRes(null)}
-                className={`w-full text-left p-4 rounded-xl border-2 transition ${!selectedRes ? 'bg-blue-50 border-blue-400' : 'bg-white border-transparent hover:bg-slate-50'}`}
+                className={`w-full text-left p-4 rounded-xl border-2 transition ${!selectedRes ? 'bg-blue-50 border-blue-400 shadow-sm' : 'bg-white border-transparent hover:bg-slate-50'}`}
               >
                 <h3 className="font-bold text-blue-900 truncate">수유 성실교회</h3>
                 <p className="text-xs text-blue-500 mt-1">우리들의 베이스캠프</p>
@@ -293,9 +312,9 @@ const App = () => {
                     <Star size={14} className="fill-orange-400 text-orange-400" />
                     {res.avgRating} <span className="text-slate-400 text-xs font-normal">({res.reviews.length})</span>
 
-                    {/* 🌟 거리 표시 뱃지 추가 */}
+                    {/* 🌟 뱃지 형태로 거리 표시 */}
                     {distances[res.id] && (
-                      <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                      <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
                         📍 {distances[res.id] < 1000
                             ? `${Math.round(distances[res.id])}m`
                             : `${(distances[res.id] / 1000).toFixed(1)}km`}
@@ -314,7 +333,7 @@ const App = () => {
                       <h2 className="text-2xl font-black">{selectedRes.name}</h2>
                       <p className="text-xs text-slate-500 mt-1"><MapPin size={12} className="inline mr-1"/>{selectedRes.address}</p>
                     </div>
-                    <button onClick={() => setIsReviewModalOpen(true)} className="bg-slate-900 text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap">
+                    <button onClick={() => setIsReviewModalOpen(true)} className="bg-slate-900 text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap shadow-md hover:scale-105 transition">
                       리뷰 쓰기
                     </button>
                   </div>
@@ -334,7 +353,7 @@ const App = () => {
                 </>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-3">
-                  <div className="bg-blue-100 p-4 rounded-full">
+                  <div className="bg-blue-100 p-4 rounded-full shadow-inner">
                     <Church size={32} className="text-blue-500" />
                   </div>
                   <p className="text-center leading-relaxed">
@@ -351,11 +370,11 @@ const App = () => {
 
       {/* 모달: 맛집 수동 등록 (직접 타이핑 방식 롤백) */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <form onSubmit={handleAddRestaurant} className="bg-white rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl">
             <div className="flex justify-between items-center mb-2">
               <h2 className="text-xl font-black">새 맛집 직접 등록하기</h2>
-              <X className="cursor-pointer text-slate-400" onClick={() => setIsAddModalOpen(false)} />
+              <X className="cursor-pointer text-slate-400 hover:text-slate-900 transition" onClick={() => setIsAddModalOpen(false)} />
             </div>
 
             <div className="space-y-3">
@@ -369,7 +388,7 @@ const App = () => {
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 ml-1">카테고리</label>
-                <select className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>
+                <select className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>
                   {['한식', '중식', '일식', '양식', '분식', '카페'].map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
@@ -378,15 +397,15 @@ const App = () => {
                 <p className="text-sm font-bold text-slate-800 mb-2">첫 리뷰를 남겨주세요!</p>
                 <div className="flex gap-1 mb-2">
                   {[1, 2, 3, 4, 5].map(i => (
-                    <Star key={i} size={24} className={`cursor-pointer ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />
+                    <Star key={i} size={24} className={`cursor-pointer transition hover:scale-110 ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />
                   ))}
                 </div>
-                <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 mb-2 outline-none text-sm" placeholder="한 줄 평" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})} />
-                <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none text-sm" placeholder="작성자 닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
+                <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 mb-2 outline-none focus:border-orange-400 text-sm" placeholder="한 줄 평 (예: 가성비 최고예요!)" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})} />
+                <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm" placeholder="작성자 닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
               </div>
             </div>
 
-            <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-orange-500 text-white rounded-xl font-bold mt-4 flex justify-center items-center">
+            <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-orange-500 text-white rounded-xl font-bold mt-4 flex justify-center items-center shadow-lg hover:bg-orange-600 transition">
                {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : "지도에 추가하기 🚀"}
             </button>
           </form>
@@ -395,19 +414,19 @@ const App = () => {
 
       {/* 모달: 리뷰 쓰기 */}
       {isReviewModalOpen && selectedRes && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <form onSubmit={handleReviewSubmit} className="bg-white rounded-3xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
             <h2 className="text-xl font-black">"{selectedRes.name}" 리뷰</h2>
             <div className="flex gap-2 justify-center py-2">
               {[1, 2, 3, 4, 5].map(i => (
-                <Star key={i} size={32} className={`cursor-pointer ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />
+                <Star key={i} size={32} className={`cursor-pointer transition hover:scale-110 ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />
               ))}
             </div>
             <textarea required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm h-24" placeholder="맛, 분위기, 가성비 등 어떠셨나요?" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})}></textarea>
             <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm" placeholder="작성자 닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
             <div className="flex gap-2 pt-2">
-              <button type="button" onClick={() => setIsReviewModalOpen(false)} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-500">취소</button>
-              <button type="submit" disabled={isSubmitting} className="flex-[2] py-3 bg-orange-500 text-white rounded-xl font-bold flex justify-center items-center">
+              <button type="button" onClick={() => setIsReviewModalOpen(false)} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition">취소</button>
+              <button type="submit" disabled={isSubmitting} className="flex-[2] py-3 bg-orange-500 text-white rounded-xl font-bold flex justify-center items-center hover:bg-orange-600 transition shadow-md">
                 {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : "등록하기"}
               </button>
             </div>
@@ -415,10 +434,35 @@ const App = () => {
         </div>
       )}
 
+      {/* 🌟 CSS 스타일: 스크롤바 커스텀 및 마커 라벨 디자인 */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        .church-marker-label {
+          background-color: white;
+          color: #1e3a8a;
+          font-size: 13px;
+          padding: 4px 10px;
+          border-radius: 8px;
+          border: 2px solid #3b82f6;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          margin-top: -30px;
+          white-space: nowrap;
+        }
+
+        .restaurant-marker-label {
+          background-color: white;
+          color: #ea580c;
+          font-size: 13px;
+          padding: 4px 10px;
+          border-radius: 8px;
+          border: 2px solid #f97316;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          margin-top: -30px;
+          white-space: nowrap;
+        }
       `}</style>
     </div>
   );
