@@ -20,6 +20,7 @@ const App = () => {
   const [newRes, setNewRes] = useState({ name: '', category: '한식', address: '' });
   const [newReview, setNewReview] = useState({ rating: 5, comment: '', author: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [distances, setDistances] = useState({}); // 🌟 각 식당까지의 거리를 저장할 공간
 
   // 구글 지도 제어를 위한 Ref
   const mapRef = useRef(null);
@@ -93,52 +94,49 @@ const App = () => {
   useEffect(() => {
     if (loading || !window.google || !mapRef.current) return;
 
-    // 1) 지도 최초 생성 (기본 식당들 숨기기 스타일 적용)
     if (!mapInstance.current) {
       mapInstance.current = new window.google.maps.Map(mapRef.current, {
         zoom: 16,
         mapTypeControl: false,
         streetViewControl: false,
         styles: [
-          { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }, // 기본 장소 숨기기
-          { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] } // 버스/지하철역 이름 숨기기
+          { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+          { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] }
         ]
       });
 
-      // 교회 마커 고정 추가 (파란색 핀)
-      getCoordinates(CHURCH_ADDRESS, (location) => {
-        mapInstance.current.setCenter(location);
+      // 교회 마커 추가 후, 식당 마커와 거리 계산
+      getCoordinates(CHURCH_ADDRESS, (churchLocation) => {
+        mapInstance.current.setCenter(churchLocation);
         new window.google.maps.Marker({
           map: mapInstance.current,
-          position: location,
+          position: churchLocation,
           title: "수유 성실교회",
           icon: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
         });
+
+        // 🌟 우리가 저장한 맛집 마커 추가 및 거리 계산
+        restaurants.forEach(res => {
+          getCoordinates(res.address, (location) => {
+            const marker = new window.google.maps.Marker({
+              map: mapInstance.current,
+              position: location,
+              title: res.name,
+              icon: "http://maps.google.com/mapfiles/ms/icons/orange-dot.png"
+            });
+
+            marker.addListener("click", () => {
+              setSelectedRes(res);
+            });
+            markersRef.current.push(marker);
+
+            // 🌟 교회와 식당 사이의 직선거리 계산 (무료 API)
+            const dist = window.google.maps.geometry.spherical.computeDistanceBetween(churchLocation, location);
+            setDistances(prev => ({ ...prev, [res.id]: dist }));
+          });
+        });
       });
     }
-
-    // 2) 기존 식당 마커 초기화
-    markersRef.current.forEach(m => m.setMap(null));
-    markersRef.current = [];
-
-    // 3) 우리가 저장한 맛집만 오렌지색 마커로 추가
-    restaurants.forEach(res => {
-      getCoordinates(res.address, (location) => {
-        const marker = new window.google.maps.Marker({
-          map: mapInstance.current,
-          position: location,
-          title: res.name,
-          icon: "http://maps.google.com/mapfiles/ms/icons/orange-dot.png"
-        });
-
-        // 마커 클릭 시 리스트에서도 해당 식당 선택되도록 연동
-        marker.addListener("click", () => {
-          setSelectedRes(res);
-        });
-
-        markersRef.current.push(marker);
-      });
-    });
   }, [loading, restaurants]);
 
   // 🌟 리스트에서 식당 클릭 시 지도 이동시키기
@@ -294,6 +292,15 @@ const App = () => {
                   <div className="flex items-center gap-1 mt-1 text-sm font-bold text-slate-600">
                     <Star size={14} className="fill-orange-400 text-orange-400" />
                     {res.avgRating} <span className="text-slate-400 text-xs font-normal">({res.reviews.length})</span>
+
+                    {/* 🌟 거리 표시 뱃지 추가 */}
+                    {distances[res.id] && (
+                      <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                        📍 {distances[res.id] < 1000
+                            ? `${Math.round(distances[res.id])}m`
+                            : `${(distances[res.id] / 1000).toFixed(1)}km`}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
