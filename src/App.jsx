@@ -1,12 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Star, MapPin, Utensils, Plus, Search,
-  MessageSquare, X, Loader2, Map as MapIcon, Church, MapPinned
+  Star,
+  MapPin,
+  Utensils,
+  Plus,
+  Search,
+  MessageSquare,
+  X,
+  Loader2,
+  Map as MapIcon,
+  Church,
+  MapPinned
 } from 'lucide-react';
 
 // 🌟 1. 팀장님의 구글 앱스 스크립트 URL
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxdChOl5CumYzkX-rjai2BpD91BQBH193NrKLL2RRIvxGKJFRx0_Si0zIFM_BClJA5M/exec";
-// 🌟 2. 방금 발급받은 카카오 REST API 키
+// 🌟 2. 팀장님의 카카오 REST API 키
 const KAKAO_REST_API_KEY = "4b4732b74bb79d6abadc2a621cca8b7b";
 
 const App = () => {
@@ -25,7 +34,7 @@ const App = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isManualAddress, setIsManualAddress] = useState(false);
 
-  // 🌟 식당 검색 관련 상태
+  // 식당 검색 관련 상태
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -49,14 +58,19 @@ const App = () => {
       const grouped = data.reduce((acc, curr) => {
         if (!acc[curr.restaurant]) {
           acc[curr.restaurant] = {
-            id: curr.restaurant, name: curr.restaurant,
-            address: curr.address || "", category: curr.category || "기타",
-            reviews: [], avgRating: 0
+            id: curr.restaurant,
+            name: curr.restaurant,
+            address: curr.address || "",
+            category: curr.category || "기타",
+            reviews: [],
+            avgRating: 0
           };
         }
         acc[curr.restaurant].reviews.push({
-          rating: Number(curr.rating), comment: curr.comment,
-          author: curr.author, timestamp: curr.timestamp
+          rating: Number(curr.rating),
+          comment: curr.comment,
+          author: curr.author,
+          timestamp: curr.timestamp
         });
         return acc;
       }, {});
@@ -69,15 +83,23 @@ const App = () => {
       });
 
       setRestaurants(processedList);
-    } catch (e) { console.error("데이터 로딩 실패", e); }
-    finally { setLoading(false); }
+    } catch (e) {
+      console.error("데이터 로딩 실패", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchRestaurants(); }, []);
+  useEffect(() => {
+    fetchRestaurants();
+  }, []);
 
   // 주소를 좌표로 변환
   const getCoordinates = (address, callback) => {
-    if (geocodeCache.current[address]) { return callback(geocodeCache.current[address]); }
+    if (geocodeCache.current[address]) {
+      callback(geocodeCache.current[address]);
+      return;
+    }
     if (!window.google) return;
     const geocoder = new window.google.maps.Geocoder();
     geocoder.geocode({ address: address }, (results, status) => {
@@ -88,12 +110,14 @@ const App = () => {
     });
   };
 
-  // 구글 지도 렌더링
+  // 구글 지도 렌더링 및 마커 설정
   useEffect(() => {
     if (loading || !window.google || !mapRef.current) return;
     if (!mapInstance.current) {
       mapInstance.current = new window.google.maps.Map(mapRef.current, {
-        zoom: 16, mapTypeControl: false, streetViewControl: false,
+        zoom: 16,
+        mapTypeControl: false,
+        streetViewControl: false,
         styles: [
           { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
           { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] }
@@ -103,24 +127,42 @@ const App = () => {
       getCoordinates(CHURCH_ADDRESS, (churchLocation) => {
         mapInstance.current.setCenter(churchLocation);
         new window.google.maps.Marker({
-          map: mapInstance.current, position: churchLocation, title: "수유 성실교회",
-          icon: { url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png", labelOrigin: new window.google.maps.Point(14, -15) },
-          label: { text: "수유 성실교회", className: "church-marker-label", fontWeight: "bold" }
+          map: mapInstance.current,
+          position: churchLocation,
+          title: "수유 성실교회",
+          icon: {
+            url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+            labelOrigin: new window.google.maps.Point(14, -15)
+          },
+          label: {
+            text: "수유 성실교회",
+            className: "church-marker-label",
+            fontWeight: "bold"
+          }
         });
 
         restaurants.forEach(res => {
           getCoordinates(res.address, (location) => {
             const marker = new window.google.maps.Marker({
-              map: mapInstance.current, position: location, title: res.name,
-              icon: { url: "http://maps.google.com/mapfiles/ms/icons/orange-dot.png", labelOrigin: new window.google.maps.Point(14, -15) },
-              label: { text: res.name, className: "restaurant-marker-label", fontWeight: "bold" }
+              map: mapInstance.current,
+              position: location,
+              title: res.name,
+              icon: {
+                url: "http://maps.google.com/mapfiles/ms/icons/orange-dot.png",
+                labelOrigin: new window.google.maps.Point(14, -15)
+              },
+              label: {
+                text: res.name,
+                className: "restaurant-marker-label",
+                fontWeight: "bold"
+              }
             });
             marker.addListener("click", () => setSelectedRes(res));
             markersRef.current.push(marker);
 
             if (window.google.maps.geometry) {
-               const dist = window.google.maps.geometry.spherical.computeDistanceBetween(churchLocation, location);
-               setDistances(prev => ({ ...prev, [res.id]: dist }));
+              const dist = window.google.maps.geometry.spherical.computeDistanceBetween(churchLocation, location);
+              setDistances(prev => ({ ...prev, [res.id]: dist }));
             }
           });
         });
@@ -128,34 +170,39 @@ const App = () => {
     }
   }, [loading, restaurants]);
 
-  // 지도 이동
+  // 지도 시점 이동
   useEffect(() => {
     if (!mapInstance.current) return;
     if (selectedRes) {
       getCoordinates(selectedRes.address, (location) => {
-        mapInstance.current.panTo(location); mapInstance.current.setZoom(17);
+        mapInstance.current.panTo(location);
+        mapInstance.current.setZoom(17);
       });
     } else {
       getCoordinates(CHURCH_ADDRESS, (location) => {
-        mapInstance.current.panTo(location); mapInstance.current.setZoom(16);
+        mapInstance.current.panTo(location);
+        mapInstance.current.setZoom(16);
       });
     }
   }, [selectedRes]);
 
+  // 검색 및 카테고리 필터링
   const filteredList = restaurants.filter(r => {
     const matchesSearch = r.name.includes(searchQuery) || r.address.includes(searchQuery);
     const matchesCategory = activeCategory === '전체' || r.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
 
-  // 리뷰 제출
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     const reviewData = {
-      restaurant: selectedRes.name, address: selectedRes.address,
-      category: selectedRes.category, rating: newReview.rating,
-      comment: newReview.comment, author: newReview.author,
+      restaurant: selectedRes.name,
+      address: selectedRes.address,
+      category: selectedRes.category,
+      rating: newReview.rating,
+      comment: newReview.comment,
+      author: newReview.author,
       timestamp: new Date().toISOString()
     };
 
@@ -170,11 +217,12 @@ const App = () => {
       await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(reviewData) });
       alert("리뷰가 등록되었습니다!");
     } finally {
-      setIsSubmitting(false); setIsReviewModalOpen(false); setNewReview({ rating: 5, comment: '', author: '' });
+      setIsSubmitting(false);
+      setIsReviewModalOpen(false);
+      setNewReview({ rating: 5, comment: '', author: '' });
     }
   };
 
-  // 🌟 카카오 로컬 API를 통한 장소 검색 (식당명 검색)
   const searchPlaces = async () => {
     if (!searchKeyword.trim()) return;
     setIsSearching(true);
@@ -185,41 +233,43 @@ const App = () => {
       const data = await response.json();
       setSearchResults(data.documents);
     } catch (e) {
-      alert("검색 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
-      console.error(e);
+      alert("검색 중 오류가 발생했습니다.");
     } finally {
       setIsSearching(false);
     }
   };
 
-  // 🌟 검색 결과에서 식당 선택
   const handleSelectPlace = (place) => {
-    // 도로명 주소가 없으면 지번 주소 사용
     const address = place.road_address_name || place.address_name;
     setNewRes({ ...newRes, name: place.place_name, address: address });
-    setSearchResults([]); // 선택 후 목록 닫기
+    setSearchResults([]);
     setSearchKeyword('');
   };
 
-  // 새 식당 등록
   const handleAddRestaurant = async (e) => {
     e.preventDefault();
     if (!newRes.name || !newRes.address) {
-      alert("식당을 검색하여 선택하거나 직접 입력해주세요.");
+      alert("식당을 선택하거나 주소를 입력해주세요.");
       return;
     }
     setIsSubmitting(true);
 
     const initialReview = {
-      restaurant: newRes.name, address: newRes.address,
-      category: newRes.category, rating: newReview.rating,
-      comment: newReview.comment, author: newReview.author,
+      restaurant: newRes.name,
+      address: newRes.address,
+      category: newRes.category,
+      rating: newReview.rating,
+      comment: newReview.comment,
+      author: newReview.author,
       timestamp: new Date().toISOString()
     };
 
     const newRestaurantData = {
-      id: newRes.name, name: newRes.name, address: newRes.address,
-      category: newRes.category, avgRating: newReview.rating.toFixed(1),
+      id: newRes.name,
+      name: newRes.name,
+      address: newRes.address,
+      category: newRes.category,
+      avgRating: newReview.rating.toFixed(1),
       reviews: [initialReview]
     };
 
@@ -228,12 +278,13 @@ const App = () => {
 
     try {
       await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(initialReview) });
-      alert("새로운 맛집이 등록되었습니다!");
+      alert("맛집이 등록되었습니다!");
     } finally {
-      setIsSubmitting(false); setIsAddModalOpen(false);
+      setIsSubmitting(false);
+      setIsAddModalOpen(false);
       setNewRes({ name: '', category: '한식', address: '' });
       setNewReview({ rating: 5, comment: '', author: '' });
-      setIsManualAddress(false); setSearchResults([]);
+      setIsManualAddress(false);
     }
   };
 
@@ -252,7 +303,6 @@ const App = () => {
       </header>
 
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-        {/* 🗺️ 왼쪽: 지도 */}
         <section className="lg:w-1/2 h-1/2 lg:h-full relative border-r border-slate-200 bg-slate-200">
           <div ref={mapRef} className="w-full h-full" />
           {selectedRes && (
@@ -264,14 +314,12 @@ const App = () => {
           )}
         </section>
 
-        {/* 📝 오른쪽: 리스트/상세 */}
         <section className="lg:w-1/2 h-1/2 lg:h-full flex flex-col bg-white">
           <div className="p-4 border-b border-slate-100 shrink-0 bg-slate-50">
             <div className="relative">
               <Search className="absolute left-3 top-3.5 text-slate-400" size={18} />
               <input type="text" placeholder="맛집 이름이나 주소 검색..." className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 text-sm shadow-sm" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             </div>
-
             <div className="flex gap-2 mt-3 overflow-x-auto custom-scrollbar pb-1">
               {CATEGORIES.map(cat => (
                 <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors shadow-sm border ${activeCategory === cat ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'}`}>
@@ -304,7 +352,6 @@ const App = () => {
                   </div>
                 </div>
               ))}
-              {filteredList.length === 0 && <div className="text-center py-10 text-slate-400 text-sm font-medium">조건에 맞는 식당이 없습니다.</div>}
             </div>
 
             <div className="lg:w-3/5 overflow-y-auto custom-scrollbar p-6 bg-slate-50">
@@ -336,7 +383,7 @@ const App = () => {
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm gap-3">
                   <div className="bg-blue-100 p-4 rounded-full shadow-inner"><Church size={32} className="text-blue-500" /></div>
-                  <p className="text-center leading-relaxed"><strong>수유 성실교회</strong>를 중심으로<br/>청년들의 맛집 지도가 펼쳐집니다.<br/><br/>왼쪽 목록이나 지도의 핀을 클릭해보세요!</p>
+                  <p className="text-center leading-relaxed"><strong>수유 성실교회</strong>를 중심으로<br/>청년들의 맛집 지도가 펼쳐집니다.</p>
                 </div>
               )}
             </div>
@@ -344,9 +391,9 @@ const App = () => {
         </section>
       </main>
 
-      {/* 🌟 모달: 새 맛집 등록 (이름으로 장소 검색 API 연동) */}
+      {/* 모달: 새 맛집 등록 */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm text-sm">
           <form onSubmit={handleAddRestaurant} className="bg-white rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100 shrink-0">
               <h2 className="text-xl font-black text-slate-900">새 맛집 제보하기</h2>
@@ -354,113 +401,84 @@ const App = () => {
             </div>
 
             <div className="overflow-y-auto custom-scrollbar flex-1 pr-2 space-y-4 py-2">
-
-              {/* 토글: 검색 모드 vs 수동 모드 */}
               <div className="flex justify-end">
                 <label className="flex items-center gap-2 cursor-pointer group">
-                  <span className="text-xs font-medium text-slate-500 group-hover:text-orange-500 transition">지도에 없는 식당 직접 쓰기</span>
+                  <span className="text-xs font-medium text-slate-500 group-hover:text-orange-500 transition">직접 입력 모드</span>
                   <input type="checkbox" className="w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-500 cursor-pointer" checked={isManualAddress} onChange={(e) => { setIsManualAddress(e.target.checked); setNewRes({name:'', category:'한식', address:''}); setSearchResults([]); setSearchKeyword(''); }} />
                 </label>
               </div>
 
               {!isManualAddress ? (
-                // 🌟 검색 모드 (카카오 장소 검색 API)
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
                   <label className="text-xs font-bold text-slate-500">식당 이름으로 검색</label>
                   <div className="flex gap-2">
-                    <input
-                      type="text"
-                      className="flex-1 p-3 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm"
-                      placeholder="예: 수유리 우동집"
-                      value={searchKeyword}
-                      onChange={e => setSearchKeyword(e.target.value)}
-                      onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); searchPlaces(); } }}
-                    />
+                    <input type="text" className="flex-1 p-3 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm" placeholder="예: 수유리 우동집" value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); searchPlaces(); } }} />
                     <button type="button" onClick={searchPlaces} disabled={isSearching} className="px-4 py-3 bg-slate-800 text-white rounded-xl font-bold text-sm whitespace-nowrap hover:bg-slate-700 transition">
                       {isSearching ? <Loader2 className="animate-spin" size={16}/> : '검색'}
                     </button>
                   </div>
-
-                  {/* 검색 결과 리스트 */}
                   {searchResults.length > 0 && (
                     <ul className="max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-xl custom-scrollbar divide-y divide-slate-100 shadow-inner">
                       {searchResults.map(place => (
                         <li key={place.id} onClick={() => handleSelectPlace(place)} className="p-3 hover:bg-orange-50 cursor-pointer transition">
-                          <div className="font-bold text-sm text-slate-900">{place.place_name} <span className="text-[10px] font-normal text-slate-400 ml-1">{place.category_group_name}</span></div>
+                          <div className="font-bold text-sm text-slate-900">{place.place_name}</div>
                           <div className="text-xs text-slate-500 mt-1 flex items-center gap-1"><MapPinned size={10}/>{place.road_address_name || place.address_name}</div>
                         </li>
                       ))}
                     </ul>
                   )}
-
-                  {/* 선택된 식당 표시 */}
-                  {newRes.name && newRes.address && (
+                  {newRes.name && (
                     <div className="mt-3 p-3 bg-orange-100 border border-orange-200 rounded-xl">
-                      <p className="text-[10px] font-bold text-orange-600 mb-1">선택된 식당</p>
                       <p className="font-bold text-slate-900">{newRes.name}</p>
                       <p className="text-xs text-slate-600 mt-1">{newRes.address}</p>
                     </div>
                   )}
                 </div>
               ) : (
-                // 수동 입력 모드
                 <div className="space-y-3 p-4 bg-orange-50 border border-orange-100 rounded-2xl">
-                  <p className="text-xs text-orange-600 font-bold mb-2">수동 입력 모드 (정확히 입력해주세요!)</p>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 ml-1">식당 이름</label>
-                    <input required className="w-full mt-1 p-3 bg-white rounded-xl border border-orange-200 focus:border-orange-400 outline-none text-sm" placeholder="예: 엘림들깨수제비" value={newRes.name} onChange={e => setNewRes({...newRes, name: e.target.value})} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 ml-1">도로명 주소</label>
-                    <input required className="w-full mt-1 p-3 bg-white rounded-xl border border-orange-200 focus:border-orange-400 outline-none text-sm" placeholder="예: 서울 강북구 삼각산로 67" value={newRes.address} onChange={e => setNewRes({...newRes, address: e.target.value})} />
-                  </div>
+                  <input required className="w-full p-3 bg-white rounded-xl border border-orange-200 outline-none text-sm" placeholder="식당 이름" value={newRes.name} onChange={e => setNewRes({...newRes, name: e.target.value})} />
+                  <input required className="w-full p-3 bg-white rounded-xl border border-orange-200 outline-none text-sm" placeholder="도로명 주소" value={newRes.address} onChange={e => setNewRes({...newRes, address: e.target.value})} />
                 </div>
               )}
 
-              {/* 공통 입력 (카테고리 및 리뷰) */}
               <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 ml-1">카테고리</label>
-                  <select className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>
-                    {CATEGORIES.filter(c => c !== '전체').map(c => <option key={c}>{c}</option>)}
-                  </select>
-                </div>
-
+                <select className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none text-sm" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>
+                  {CATEGORIES.filter(c => c !== '전체').map(c => <option key={c}>{c}</option>)}
+                </select>
                 <div className="border-t border-slate-100 pt-4 mt-2">
-                  <p className="text-sm font-bold text-slate-800 mb-2">첫 리뷰를 남겨주세요!</p>
                   <div className="flex gap-1 mb-2">
                     {[1, 2, 3, 4, 5].map(i => (
-                      <Star key={i} size={24} className={`cursor-pointer transition hover:scale-110 ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />
+                      <Star key={i} size={24} className={`cursor-pointer transition ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />
                     ))}
                   </div>
-                  <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 mb-2 outline-none focus:border-orange-400 text-sm" placeholder="한 줄 평 (예: 가성비 최고예요!)" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})} />
-                  <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm" placeholder="작성자 닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
+                  <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 mb-2 outline-none text-sm" placeholder="한 줄 평" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})} />
+                  <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none text-sm" placeholder="닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
                 </div>
               </div>
             </div>
 
-            <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-orange-500 text-white rounded-xl font-bold shrink-0 flex justify-center items-center shadow-lg hover:bg-orange-600 transition">
+            <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-orange-500 text-white rounded-xl font-bold shrink-0 shadow-lg hover:bg-orange-600 transition">
                {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : "지도에 추가하기 🚀"}
             </button>
           </form>
         </div>
       )}
 
-      {/* 모달: 리뷰 쓰기 (생략, 기존과 동일) */}
+      {/* 모달: 리뷰 쓰기 */}
       {isReviewModalOpen && selectedRes && (
         <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <form onSubmit={handleReviewSubmit} className="bg-white rounded-3xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
             <h2 className="text-xl font-black text-slate-900">"{selectedRes.name}" 리뷰</h2>
             <div className="flex gap-2 justify-center py-2">
               {[1, 2, 3, 4, 5].map(i => (
-                <Star key={i} size={32} className={`cursor-pointer transition hover:scale-110 ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />
+                <Star key={i} size={32} className={`cursor-pointer transition ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />
               ))}
             </div>
-            <textarea required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm h-24" placeholder="맛, 분위기, 가성비 등 어떠셨나요?" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})}></textarea>
+            <textarea required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm h-24" placeholder="맛, 분위기는 어떠셨나요?" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})}></textarea>
             <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm" placeholder="작성자 닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setIsReviewModalOpen(false)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition">취소</button>
-              <button type="submit" disabled={isSubmitting} className="flex-[2] py-3 bg-orange-500 text-white rounded-xl font-bold flex justify-center items-center hover:bg-orange-600 transition shadow-md">
+              <button type="submit" disabled={isSubmitting} className="flex-[2] py-3 bg-orange-500 text-white rounded-xl font-bold shadow-md hover:bg-orange-600 transition">
                 {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : "등록하기"}
               </button>
             </div>
@@ -472,8 +490,8 @@ const App = () => {
         .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .church-marker-label { background-color: white; color: #1e3a8a; font-size: 13px; padding: 4px 10px; border-radius: 8px; border: 2px solid #3b82f6; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: -30px; white-space: nowrap; }
-        .restaurant-marker-label { background-color: white; color: #ea580c; font-size: 13px; padding: 4px 10px; border-radius: 8px; border: 2px solid #f97316; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: -30px; white-space: nowrap; }
+        .church-marker-label { background-color: white; color: #1e3a8a; font-size: 13px; padding: 4px 10px; border-radius: 8px; border: 2px solid #3b82f6; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: -30px; white-space: nowrap; pointer-events: none; }
+        .restaurant-marker-label { background-color: white; color: #ea580c; font-size: 13px; padding: 4px 10px; border-radius: 8px; border: 2px solid #f97316; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: -30px; white-space: nowrap; pointer-events: none; }
       `}</style>
     </div>
   );
