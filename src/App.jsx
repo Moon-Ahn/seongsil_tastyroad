@@ -1,324 +1,381 @@
-import React, { useState, useMemo } from 'react';
-import {
-  Star,
-  MapPin,
-  Utensils,
-  Plus,
-  Search,
-  Navigation,
-  MessageSquare,
+### 🚀 최종 완성본: `App.jsx` 전체 코드
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Star, 
+  MapPin, 
+  Utensils, 
+  Plus, 
+  Search, 
+  Navigation, 
+  MessageSquare, 
   X,
+  Loader2,
   Map as MapIcon
 } from 'lucide-react';
 
-// --- [초기 데이터] 수유역/성실교회 근처 맛집 리스트 ---
-const initialRestaurants = [
-  {
-    id: 1,
-    name: "엘림들깨수제비",
-    category: "한식",
-    address: "서울 강북구 삼각산로 67",
-    avgRating: 4.8,
-    reviewCount: 12,
-    tags: ["들깨가득", "가성비갑", "어르신입맛"],
-    locationKeyword: "수유동 엘림들깨수제비"
-  },
-  {
-    id: 2,
-    name: "진주성",
-    category: "중식",
-    address: "서울 강북구 수유로 55",
-    avgRating: 4.2,
-    reviewCount: 8,
-    tags: ["청년부단골", "탕수육맛집", "신속배달"],
-    locationKeyword: "수유동 진주성"
-  },
-  {
-    id: 3,
-    name: "칠복떡볶이",
-    category: "분식",
-    address: "서울 강북구 도봉로87길 26",
-    avgRating: 4.5,
-    reviewCount: 15,
-    tags: ["매콤달콤", "인생떡볶이", "혼밥가능"],
-    locationKeyword: "수유역 칠복떡볶이"
-  },
-  {
-    id: 4,
-    name: "카페 티에드",
-    category: "카페",
-    address: "서울 강북구 노해로 33",
-    avgRating: 4.7,
-    reviewCount: 20,
-    tags: ["분위기맛집", "조용한교제", "커피향가득"],
-    locationKeyword: "수유동 카페 티에드"
-  }
-];
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxdChOl5CumYzkX-rjai2BpD91BQBH193NrKLL2RRIvxGKJFRx0_Si0zIFM_BClJA5M/exec"; // 여기에 팀장님의 구글 앱스 스크립트 URL을 넣으세요!
 
 const App = () => {
-  const [restaurants, setRestaurants] = useState(initialRestaurants);
-  const [selectedId, setSelectedId] = useState(1);
+  const [restaurants, setRestaurants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedRes, setSelectedRes] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('전체');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const [statusMessage, setStatusMessage] = useState(null);
+  
+  // 모달 상태
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  
+  // 폼 상태
+  const [newRes, setNewRes] = useState({ name: '', category: '한식', address: '', tags: '' });
+  const [newReview, setNewReview] = useState({ rating: 5, comment: '', author: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 현재 선택된 맛집 정보
-  const activeRes = useMemo(() =>
-    restaurants.find(r => r.id === selectedId) || restaurants[0]
-  , [selectedId, restaurants]);
+  // 1. 데이터 불러오기 (초기 로딩 시 1회)
+  const fetchRestaurants = async () => {
+    try {
+      const response = await fetch(SCRIPT_URL);
+      const data = await response.json();
+      
+      // 구글 시트에서 가져온 데이터를 레스토랑별로 그룹화
+      const grouped = data.reduce((acc, curr) => {
+        if (!acc[curr.restaurant]) {
+          acc[curr.restaurant] = {
+            id: curr.restaurant,
+            name: curr.restaurant,
+            address: curr.address || "주소 정보 없음", // 시트에 주소 열이 추가되어야 함
+            category: curr.category || "맛집",
+            reviews: [],
+            avgRating: 0
+          };
+        }
+        acc[curr.restaurant].reviews.push({
+          rating: Number(curr.rating),
+          comment: curr.comment,
+          author: curr.author,
+          timestamp: curr.timestamp
+        });
+        return acc;
+      }, {});
 
-  // 필터링된 목록
-  const filteredList = restaurants.filter(r => {
-    const matchesSearch = r.name.includes(searchQuery) || r.tags.some(t => t.includes(searchQuery));
-    const matchesCategory = categoryFilter === '전체' || r.category === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
+      // 평균 별점 계산
+      const processedList = Object.values(grouped).map(res => {
+        const total = res.reviews.reduce((sum, r) => sum + r.rating, 0);
+        res.avgRating = (total / res.reviews.length).toFixed(1);
+        // 최신 리뷰가 위로 오도록 정렬
+        res.reviews.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        return res;
+      });
 
-  // 새 맛집 등록 처리
-  const handleAddRestaurant = (e) => {
+      setRestaurants(processedList);
+      if (processedList.length > 0 && !selectedRes) {
+        setSelectedRes(processedList[0]);
+      }
+    } catch (e) {
+      console.error("데이터 로딩 실패", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRestaurants();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 필터링된 식당 목록
+  const filteredList = restaurants.filter(r => 
+    r.name.includes(searchQuery) || r.address.includes(searchQuery)
+  );
+
+  // 2. 카카오 주소 검색 열기
+  const openAddressSearch = () => {
+    new window.daum.Postcode({
+      oncomplete: function(data) {
+        setNewRes(prev => ({ ...prev, address: data.roadAddress || data.jibunAddress }));
+      }
+    }).open();
+  };
+
+  // 3. 리뷰 저장하기 (낙관적 업데이트 적용: 즉시 화면에 보임)
+  const handleReviewSubmit = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const newRes = {
-      id: Date.now(),
-      name: formData.get('name'),
-      category: formData.get('category'),
-      address: formData.get('address'),
-      avgRating: 0,
-      reviewCount: 0,
-      tags: formData.get('tags').split(',').map(t => t.trim()),
-      locationKeyword: formData.get('name') + " 수유동"
+    setIsSubmitting(true);
+
+    const reviewData = {
+      restaurant: selectedRes.name,
+      address: selectedRes.address,
+      category: selectedRes.category,
+      rating: newReview.rating,
+      comment: newReview.comment,
+      author: newReview.author,
+      timestamp: new Date().toISOString()
     };
-    setRestaurants([newRes, ...restaurants]);
-    setIsModalOpen(false);
-    showMessage("새로운 맛집이 등록되었습니다! 🎉");
+
+    // 화면에 먼저 즉시 반영 (낙관적 업데이트)
+    const updatedRes = { ...selectedRes };
+    updatedRes.reviews = [reviewData, ...updatedRes.reviews];
+    const newTotal = updatedRes.reviews.reduce((sum, r) => sum + r.rating, 0);
+    updatedRes.avgRating = (newTotal / updatedRes.reviews.length).toFixed(1);
+    
+    setSelectedRes(updatedRes);
+    setRestaurants(prev => prev.map(r => r.id === updatedRes.id ? updatedRes : r));
+
+    try {
+      // 구글 시트로 백그라운드 전송
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reviewData)
+      });
+      alert("리뷰가 등록되었습니다!");
+    } catch (e) {
+      alert("네트워크 오류가 발생했지만, 화면에는 임시 저장되었습니다.");
+    } finally {
+      setIsSubmitting(false);
+      setIsReviewModalOpen(false);
+      setNewReview({ rating: 5, comment: '', author: '' });
+    }
   };
 
-  const showMessage = (msg) => {
-    setStatusMessage(msg);
-    setTimeout(() => setStatusMessage(null), 3000);
+  // 4. 새 식당 등록하기 (첫 리뷰 동시 작성)
+  const handleAddRestaurant = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    const initialReview = {
+      restaurant: newRes.name,
+      address: newRes.address,
+      category: newRes.category,
+      rating: newReview.rating,
+      comment: newReview.comment,
+      author: newReview.author,
+      timestamp: new Date().toISOString()
+    };
+
+    // 화면에 즉시 반영
+    const newRestaurantData = {
+      id: newRes.name,
+      name: newRes.name,
+      address: newRes.address,
+      category: newRes.category,
+      avgRating: newReview.rating.toFixed(1),
+      reviews: [initialReview]
+    };
+    
+    setRestaurants([newRestaurantData, ...restaurants]);
+    setSelectedRes(newRestaurantData);
+
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify(initialReview)
+      });
+      alert("새로운 맛집이 등록되었습니다!");
+    } finally {
+      setIsSubmitting(false);
+      setIsAddModalOpen(false);
+      setNewRes({ name: '', category: '한식', address: '', tags: '' });
+      setNewReview({ rating: 5, comment: '', author: '' });
+    }
   };
+
+  if (loading) return <div className="h-screen flex items-center justify-center text-orange-500 font-bold"><Loader2 className="animate-spin mr-2"/> 맛집 지도를 불러오는 중...</div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col">
-      {/* 상단 바 */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="bg-orange-500 p-2 rounded-xl shadow-lg shadow-orange-100">
-              <Utensils className="text-white" size={20} />
-            </div>
-            <h1 className="text-xl font-black tracking-tight">성실 맛집 <span className="text-orange-500">Gourmet</span></h1>
+    <div className="h-screen bg-slate-50 font-sans text-slate-900 flex flex-col overflow-hidden">
+      
+      {/* 🔹 상단 헤더 */}
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shrink-0 z-10">
+        <div className="flex items-center gap-3">
+          <div className="bg-orange-500 p-2 rounded-xl">
+            <Utensils className="text-white" size={20} />
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-slate-900 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 hover:bg-slate-800 transition shadow-md"
-          >
-            <Plus size={16} /> 맛집 제보
-          </button>
+          <h1 className="text-xl font-black tracking-tight">성실 맛집 <span className="text-orange-500">Map</span></h1>
         </div>
+        <button 
+          onClick={() => setIsAddModalOpen(true)}
+          className="bg-slate-900 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 hover:bg-slate-800 transition"
+        >
+          <Plus size={16} /> 맛집 추가하기
+        </button>
       </header>
 
-      <main className="flex-1 max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 lg:p-6 overflow-hidden">
-
-        {/* 왼쪽 섹션: 목록 및 검색 (LG: 5/12) */}
-        <div className="lg:col-span-5 flex flex-col gap-4 overflow-hidden h-[calc(100vh-140px)]">
-          {/* 검색 및 필터 */}
-          <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 text-slate-400" size={18} />
-              <input
-                type="text"
-                placeholder="식당 이름이나 태그 검색..."
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-orange-400 transition outline-none text-sm"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {['전체', '한식', '중식', '일식', '양식', '분식', '카페'].map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setCategoryFilter(cat)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${categoryFilter === cat ? 'bg-orange-500 text-white shadow-md shadow-orange-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 맛집 리스트 */}
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
-            {filteredList.map(res => (
-              <div
-                key={res.id}
-                onClick={() => setSelectedId(res.id)}
-                className={`p-4 rounded-2xl cursor-pointer border-2 transition-all ${selectedId === res.id ? 'bg-white border-orange-500 shadow-xl scale-[1.01]' : 'bg-white border-transparent hover:border-slate-200 shadow-sm'}`}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-orange-500 px-2 py-0.5 bg-orange-50 rounded italic border border-orange-100">
-                    {res.category}
-                  </span>
-                  <div className="flex items-center gap-1 text-xs font-bold text-slate-400">
-                    <Star size={14} className="fill-orange-400 text-orange-400" />
-                    <span className="text-slate-700">{res.avgRating}</span>
-                    <span>({res.reviewCount})</span>
-                  </div>
-                </div>
-                <h3 className="font-bold text-slate-900 mb-1">{res.name}</h3>
-                <p className="text-xs text-slate-500 mb-3 truncate">{res.address}</p>
-                <div className="flex flex-wrap gap-1">
-                  {res.tags.map((tag, idx) => (
-                    <span key={idx} className="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded italic">#{tag}</span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 오른쪽 섹션: 상세 정보 및 지도 (LG: 7/12) */}
-        <div className="lg:col-span-7 flex flex-col gap-4 overflow-hidden h-[calc(100vh-140px)]">
-          {/* 상단 지도 */}
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 h-2/3 overflow-hidden relative group">
+      {/* 🔹 메인 분할 화면 (왼쪽: 지도 / 오른쪽: 목록 및 리뷰) */}
+      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+        
+        {/* 🗺️ 왼쪽: 구글 맵 (네이버 지도로 가는 버튼 포함) */}
+        <section className="lg:w-1/2 h-1/2 lg:h-full bg-slate-200 relative border-r border-slate-200">
+          {selectedRes ? (
             <iframe
               width="100%"
               height="100%"
               style={{ border: 0 }}
-              loading="lazy"
-              src={`https://maps.google.com/maps?q=${encodeURIComponent(activeRes.locationKeyword)}&t=&z=17&ie=UTF8&iwloc=&output=embed`}
+              src={`https://maps.google.com/maps?q=${encodeURIComponent(selectedRes.name + " " + selectedRes.address)}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
               title="Restaurant Map"
-              className="grayscale-[0.2] contrast-[1.1]"
             ></iframe>
-            <div className="absolute top-4 right-4 flex flex-col gap-2">
-              <a
-                href={`https://map.naver.com/v5/search/${encodeURIComponent(activeRes.name + " 수유동")}`}
+          ) : (
+            <div className="h-full flex items-center justify-center text-slate-500">식당을 선택해주세요.</div>
+          )}
+          
+          {/* 네이버 지도 길찾기 플로팅 버튼 */}
+          {selectedRes && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2">
+              <a 
+                href={`https://map.naver.com/v5/search/${encodeURIComponent(selectedRes.name + " 수유동")}`}
                 target="_blank"
                 rel="noreferrer"
-                className="bg-white/90 backdrop-blur p-3 rounded-2xl shadow-lg flex items-center justify-center text-green-600 hover:scale-110 transition active:scale-90"
+                className="bg-green-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 font-bold hover:bg-green-700 transition hover:scale-105"
               >
-                <Navigation size={20} />
+                <MapIcon size={18} /> 네이버 지도에서 길찾기
               </a>
             </div>
-          </div>
+          )}
+        </section>
 
-          {/* 하단 상세 정보 카드 */}
-          <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
-            <div className="flex justify-between items-start">
-              <div>
-                <h2 className="text-2xl font-black text-slate-900">{activeRes.name}</h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <MapPin size={14} className="text-orange-500" />
-                  <span className="text-sm text-slate-500">{activeRes.address}</span>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="flex items-center justify-end gap-1 mb-1">
-                  <Star size={24} className="fill-orange-400 text-orange-400" />
-                  <span className="text-2xl font-black text-slate-900">{activeRes.avgRating}</span>
-                </div>
-                <p className="text-xs text-slate-400 font-bold">{activeRes.reviewCount}개의 성실 리뷰</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mt-2">
-              <button
-                onClick={() => setShowReviewForm(true)}
-                className="flex items-center justify-center gap-2 py-3 bg-orange-50 text-orange-600 rounded-2xl font-bold hover:bg-orange-100 transition text-sm border border-orange-200 shadow-sm"
-              >
-                <MessageSquare size={16} /> 리뷰 작성하기
-              </button>
-              <a
-                href={`https://map.naver.com/v5/search/${encodeURIComponent(activeRes.name + " 수유동")}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-center gap-2 py-3 bg-green-50 text-green-700 rounded-2xl font-bold hover:bg-green-100 transition text-sm border border-green-200 shadow-sm"
-              >
-                <MapIcon size={16} /> 네이버 지도로 보기
-              </a>
+        {/* 📝 오른쪽: 식당 리스트 및 상세 리뷰 */}
+        <section className="lg:w-1/2 h-1/2 lg:h-full flex flex-col bg-white">
+          
+          {/* 검색바 */}
+          <div className="p-4 border-b border-slate-100 shrink-0 bg-slate-50">
+            <div className="relative">
+              <Search className="absolute left-3 top-3.5 text-slate-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="맛집 이름이나 주소 검색..." 
+                className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 text-sm"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
           </div>
-        </div>
-      </main>
 
-      {/* 상태 메시지 토스트 */}
-      {statusMessage && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl z-50 animate-bounce font-bold text-sm">
-          {statusMessage}
-        </div>
-      )}
-
-      {/* 모달: 새로운 맛집 제보 */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95">
-            <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-              <h2 className="text-xl font-black italic">NEW RESTAURANT</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-900 transition">
-                <X size={24} />
-              </button>
-            </div>
-            <form onSubmit={handleAddRestaurant} className="p-8 space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-black text-slate-400 ml-1 uppercase">식당 이름</label>
-                <input name="name" required className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="예: 수유리 우동집" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-black text-slate-400 ml-1 uppercase">카테고리</label>
-                  <select name="category" className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-orange-400 text-sm">
-                    {['한식', '중식', '일식', '양식', '분식', '카페'].map(c => <option key={c}>{c}</option>)}
-                  </select>
+          <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+            {/* 맛집 목록 리스트 (스크롤) */}
+            <div className="lg:w-2/5 border-r border-slate-100 overflow-y-auto custom-scrollbar p-2 space-y-2">
+              {filteredList.map(res => (
+                <div 
+                  key={res.id}
+                  onClick={() => setSelectedRes(res)}
+                  className={`p-4 rounded-xl cursor-pointer border-2 transition ${selectedRes?.id === res.id ? 'bg-orange-50 border-orange-400' : 'bg-white border-transparent hover:bg-slate-50'}`}
+                >
+                  <h3 className="font-bold text-slate-900 truncate">{res.name}</h3>
+                  <div className="flex items-center gap-1 mt-1 text-sm font-bold text-slate-600">
+                    <Star size={14} className="fill-orange-400 text-orange-400" />
+                    {res.avgRating} <span className="text-slate-400 text-xs font-normal">({res.reviews.length})</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2 truncate"><MapPin size={10} className="inline mr-1"/>{res.address}</p>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-black text-slate-400 ml-1 uppercase">태그 (쉼표 구분)</label>
-                  <input name="tags" className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="매콤한, 단체석" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-black text-slate-400 ml-1 uppercase">주소</label>
-                <input name="address" required className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-orange-400 outline-none text-sm" placeholder="도로명 주소를 입력하세요" />
-              </div>
-              <button type="submit" className="w-full bg-orange-500 text-white py-5 rounded-[1.5rem] font-black text-lg hover:bg-orange-600 transition shadow-lg shadow-orange-100 mt-4">
-                맛집 제보하기 🚀
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 모달: 리뷰 작성 (UI만 구현) */}
-      {showReviewForm && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 p-8 text-center space-y-6">
-            <h2 className="text-xl font-black italic underline decoration-orange-400 decoration-4">REVIEW NOW</h2>
-            <p className="text-slate-500 text-sm font-medium">"{activeRes.name}" 식당은 어떠셨나요?</p>
-            <div className="flex justify-center gap-1">
-              {[1, 2, 3, 4, 5].map(i => (
-                <Star key={i} size={36} className="text-slate-200 hover:text-orange-400 cursor-pointer transition fill-current" />
               ))}
             </div>
-            <textarea className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-orange-400 h-24 text-sm" placeholder="부원들에게 추천하는 이유를 적어주세요!"></textarea>
-            <div className="flex gap-2">
-              <button onClick={() => setShowReviewForm(false)} className="flex-1 py-4 bg-slate-100 rounded-2xl font-bold text-slate-500">취소</button>
-              <button onClick={() => { setShowReviewForm(false); showMessage("리뷰가 등록되었습니다! ⭐"); }} className="flex-[2] py-4 bg-slate-900 text-white rounded-2xl font-bold">리뷰 제출</button>
+
+            {/* 선택된 맛집의 상세 리뷰 피드 */}
+            <div className="lg:w-3/5 overflow-y-auto custom-scrollbar p-6 bg-slate-50">
+              {selectedRes ? (
+                <>
+                  <div className="flex justify-between items-end mb-6">
+                    <div>
+                      <h2 className="text-2xl font-black">{selectedRes.name}</h2>
+                      <p className="text-sm text-slate-500 mt-1">{selectedRes.address}</p>
+                    </div>
+                    <button 
+                      onClick={() => setIsReviewModalOpen(true)}
+                      className="bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-slate-800"
+                    >
+                      <MessageSquare size={16} /> 리뷰 쓰기
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {selectedRes.reviews.map((r, i) => (
+                      <div key={i} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-bold text-sm text-slate-800">{r.author}</span>
+                          <div className="flex">
+                            {[1,2,3,4,5].map(num => (
+                              <Star key={num} size={12} className={num <= r.rating ? "fill-orange-400 text-orange-400" : "text-slate-200"} />
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">{r.comment}</p>
+                        <p className="text-[10px] text-slate-400 mt-2 text-right">{new Date(r.timestamp).toLocaleDateString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-400 text-sm">리스트에서 식당을 선택해주세요.</div>
+              )}
             </div>
           </div>
+        </section>
+      </main>
+
+      {/* 🔹 모달: 리뷰 쓰기 */}
+      {isReviewModalOpen && selectedRes && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
+          <form onSubmit={handleReviewSubmit} className="bg-white rounded-3xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+            <h2 className="text-xl font-black">"{selectedRes.name}" 리뷰</h2>
+            <div className="flex gap-2 justify-center py-2">
+              {[1, 2, 3, 4, 5].map(i => (
+                <Star key={i} size={32} className={`cursor-pointer ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />
+              ))}
+            </div>
+            <textarea required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm h-24" placeholder="맛, 분위기, 가성비 등 어떠셨나요?" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})}></textarea>
+            <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm" placeholder="작성자 닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setIsReviewModalOpen(false)} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-500">취소</button>
+              <button type="submit" disabled={isSubmitting} className="flex-[2] py-3 bg-orange-500 text-white rounded-xl font-bold flex justify-center items-center">
+                {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : "등록하기"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 🔹 모달: 새 식당 등록하기 (Daum 주소검색 적용) */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
+          <form onSubmit={handleAddRestaurant} className="bg-white rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-xl font-black">새 맛집 제보하기</h2>
+              <X className="cursor-pointer text-slate-400" onClick={() => setIsAddModalOpen(false)} />
+            </div>
+            
+            <div className="space-y-3">
+              <input required name="name" className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 focus:border-orange-400 outline-none text-sm" placeholder="식당 이름" value={newRes.name} onChange={e => setNewRes({...newRes, name: e.target.value})} />
+              
+              {/* 카카오 주소 검색 버튼 */}
+              <div className="flex gap-2">
+                <input required readOnly className="flex-1 p-3 bg-slate-100 rounded-xl border border-slate-200 text-sm text-slate-600" placeholder="주소를 검색해주세요" value={newRes.address} />
+                <button type="button" onClick={openAddressSearch} className="px-4 py-3 bg-slate-800 text-white rounded-xl font-bold text-sm whitespace-nowrap">주소 찾기</button>
+              </div>
+
+              <div className="border-t border-slate-100 pt-3 mt-3">
+                <p className="text-sm font-bold text-slate-600 mb-2">첫 리뷰를 남겨주세요!</p>
+                <div className="flex gap-1 mb-2">
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <Star key={i} size={24} className={`cursor-pointer ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />
+                  ))}
+                </div>
+                <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 mb-2 outline-none text-sm" placeholder="한 줄 평" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})} />
+                <input required className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none text-sm" placeholder="작성자 닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
+              </div>
+            </div>
+
+            <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-orange-500 text-white rounded-xl font-bold mt-4 flex justify-center items-center">
+               {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : "지도에 추가하기 🚀"}
+            </button>
+          </form>
         </div>
       )}
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes zoom-in-95 { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .animate-in { animation: 0.3s ease-out forwards; }
-        .fade-in { animation-name: fade-in; }
-        .zoom-in-95 { animation-name: zoom-in-95; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
       `}</style>
     </div>
   );
