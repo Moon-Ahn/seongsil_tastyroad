@@ -223,23 +223,19 @@ const App = () => {
     }
   };
 
-  const searchPlaces = async () => {
-    if (!searchKeyword.trim()) return;
+  const searchPlaces = () => {
+      if (!searchKeyword.trim()) return;
 
-    // 🌟 안전장치: 카카오 객체가 있는지 먼저 확인
-    if (!window.kakao || !window.kakao.maps) {
-      alert("카카오 지도 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
-      return;
-    }
+      if (!window.kakao) {
+        alert("카카오 SDK를 불러올 수 없습니다. 페이지를 새로고침 해주세요.");
+        return;
+      }
 
-    setIsSearching(true);
+      setIsSearching(true);
 
-    // 🌟 kakao.maps.load를 사용하여 라이브러리가 완전히 준비된 후 실행
-    window.kakao.maps.load(() => {
-      try {
-        if (window.kakao.maps.services) {
+      window.kakao.maps.load(() => {
+        try {
           const ps = new window.kakao.maps.services.Places();
-
           ps.keywordSearch(searchKeyword, (data, status) => {
             if (status === window.kakao.maps.services.Status.OK) {
               setSearchResults(data);
@@ -252,16 +248,12 @@ const App = () => {
             }
             setIsSearching(false);
           });
-        } else {
-          // 도메인 등록 문제나 라이브러리 파라미터 누락 시 여기로 옵니다.
-          alert("검색 기능을 사용할 수 없습니다. 카카오 설정(도메인)을 확인해주세요.");
+        } catch (e) {
+          console.error("검색 에러:", e);
+          alert("검색 중 문제가 발생했습니다: " + e.message);
           setIsSearching(false);
         }
-      } catch (e) {
-        console.error("검색 에러:", e);
-        setIsSearching(false);
-      }
-    });
+      });
   };
 
   const handleSelectPlace = (place) => {
