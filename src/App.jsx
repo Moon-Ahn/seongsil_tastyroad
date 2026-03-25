@@ -226,17 +226,24 @@ const App = () => {
   const searchPlaces = async () => {
     if (!searchKeyword.trim()) return;
     setIsSearching(true);
-    try {
-      const response = await fetch(`https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(searchKeyword)}`, {
-        headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` }
-      });
-      const data = await response.json();
-      setSearchResults(data.documents);
-    } catch (e) {
-      alert("검색 중 오류가 발생했습니다.");
-    } finally {
+
+    // 🌟 카카오 SDK의 장소 검색 서비스 객체 생성
+    const ps = new window.kakao.maps.services.Places();
+
+    // 키워드로 장소 검색
+    ps.keywordSearch(searchKeyword, (data, status) => {
+      if (status === window.kakao.maps.services.Status.OK) {
+        // 검색 성공!
+        setSearchResults(data);
+      } else if (status === window.kakao.maps.services.Status.ZERO_RESULT) {
+        alert("검색 결과가 없습니다.");
+        setSearchResults([]);
+      } else {
+        alert("검색 중 오류가 발생했습니다.");
+        setSearchResults([]);
+      }
       setIsSearching(false);
-    }
+    });
   };
 
   const handleSelectPlace = (place) => {
