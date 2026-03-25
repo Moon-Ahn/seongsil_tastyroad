@@ -16,19 +16,21 @@ const App = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
-  // 직접 입력 방식으로 롤백
+  // 맛집 등록 폼 상태
   const [newRes, setNewRes] = useState({ name: '', category: '한식', address: '' });
   const [newReview, setNewReview] = useState({ rating: 5, comment: '', author: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 🌟 각 식당까지의 거리를 저장할 공간
+  // 🌟 주소 '직접 입력' 모드 스위치
+  const [isManualAddress, setIsManualAddress] = useState(false);
+
   const [distances, setDistances] = useState({});
 
   // 구글 지도 제어를 위한 Ref
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const markersRef = useRef([]);
-  const geocodeCache = useRef({}); // 주소->좌표 변환 캐시
+  const geocodeCache = useRef({});
 
   const CHURCH_ADDRESS = "서울 강북구 노해로 50";
 
@@ -75,7 +77,7 @@ const App = () => {
 
   useEffect(() => { fetchRestaurants(); }, []);
 
-  // 🌟 주소를 좌표로 변환해주는 헬퍼 함수
+  // 주소를 좌표로 변환
   const getCoordinates = (address, callback) => {
     if (geocodeCache.current[address]) {
       callback(geocodeCache.current[address]);
@@ -92,7 +94,7 @@ const App = () => {
     });
   };
 
-  // 🌟 구글 지도 초기화, 마커 렌더링, 라벨(말풍선) 표시 및 거리 계산
+  // 구글 지도 초기화 및 마커 렌더링
   useEffect(() => {
     if (loading || !window.google || !mapRef.current) return;
 
@@ -107,7 +109,6 @@ const App = () => {
         ]
       });
 
-      // 1) 교회 마커 추가 (예쁜 말풍선 포함)
       getCoordinates(CHURCH_ADDRESS, (churchLocation) => {
         mapInstance.current.setCenter(churchLocation);
         new window.google.maps.Marker({
@@ -116,7 +117,7 @@ const App = () => {
           title: "수유 성실교회",
           icon: {
             url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
-            labelOrigin: new window.google.maps.Point(14, -15) // 라벨 위치 위로 조정
+            labelOrigin: new window.google.maps.Point(14, -15)
           },
           label: {
             text: "수유 성실교회",
@@ -125,7 +126,6 @@ const App = () => {
           }
         });
 
-        // 2) 식당 마커 추가 (말풍선 포함) 및 거리 계산
         restaurants.forEach(res => {
           getCoordinates(res.address, (location) => {
             const marker = new window.google.maps.Marker({
@@ -134,7 +134,7 @@ const App = () => {
               title: res.name,
               icon: {
                 url: "http://maps.google.com/mapfiles/ms/icons/orange-dot.png",
-                labelOrigin: new window.google.maps.Point(14, -15) // 라벨 위치 위로 조정
+                labelOrigin: new window.google.maps.Point(14, -15)
               },
               label: {
                 text: res.name,
@@ -148,7 +148,6 @@ const App = () => {
             });
             markersRef.current.push(marker);
 
-            // 거리 계산 (미터 단위)
             if (window.google.maps.geometry) {
                const dist = window.google.maps.geometry.spherical.computeDistanceBetween(churchLocation, location);
                setDistances(prev => ({ ...prev, [res.id]: dist }));
@@ -159,14 +158,14 @@ const App = () => {
     }
   }, [loading, restaurants]);
 
-  // 🌟 리스트에서 식당 클릭 시 지도 이동시키기
+  // 지도 이동
   useEffect(() => {
     if (!mapInstance.current) return;
 
     if (selectedRes) {
       getCoordinates(selectedRes.address, (location) => {
-        mapInstance.current.panTo(location); // 부드럽게 이동
-        mapInstance.current.setZoom(17); // 확 땡겨서 보여줌
+        mapInstance.current.panTo(location);
+        mapInstance.current.setZoom(17);
       });
     } else {
       getCoordinates(CHURCH_ADDRESS, (location) => {
@@ -208,9 +207,35 @@ const App = () => {
     }
   };
 
-  // 새 식당 등록 (직접 타이핑)
+  // 🌟 카카오(다음) 주소 검색 팝업 띄우기
+  const handleAddressSearch = () => {
+    if (!window.daum || !window.daum.Postcode) {
+      alert("주소 검색 스크립트를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.");
+      return;
+    }
+
+    new window.daum.Postcode({
+      oncomplete: function(data) {
+        // 사용자가 도로명 주소를 선택하든 지번 주소를 선택하든 우선적으로 도로명 주소를 가져옵니다.
+        const fullAddress = data.roadAddress || data.jibunAddress;
+
+        // 검색된 주소로 상태 업데이트
+        setNewRes(prev => ({ ...prev, address: fullAddress }));
+        // 상호명을 검색했다면 식당 이름도 같이 채워줍니다.
+        if (data.buildingName && prev.name === '') {
+          setNewRes(prev => ({ ...prev, name: data.buildingName, address: fullAddress }));
+        }
+      }
+    }).open();
+  };
+
+  // 새 식당 등록
   const handleAddRestaurant = async (e) => {
     e.preventDefault();
+    if (!newRes.address) {
+      alert("주소를 입력해주세요.");
+      return;
+    }
     setIsSubmitting(true);
 
     const initialReview = {
@@ -237,6 +262,7 @@ const App = () => {
       setIsAddModalOpen(false);
       setNewRes({ name: '', category: '한식', address: '' });
       setNewReview({ rating: 5, comment: '', author: '' });
+      setIsManualAddress(false); // 수동 입력 모드 초기화
     }
   };
 
@@ -253,7 +279,7 @@ const App = () => {
           <h1 className="text-xl font-black tracking-tight">성실 맛집 <span className="text-orange-500">Map</span></h1>
         </div>
         <button onClick={() => setIsAddModalOpen(true)} className="bg-slate-900 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 hover:bg-slate-800 transition shadow-md">
-          <Plus size={16} /> 맛집 수동 등록
+          <Plus size={16} /> 새 맛집 등록
         </button>
       </header>
 
@@ -314,7 +340,7 @@ const App = () => {
 
                     {/* 🌟 뱃지 형태로 거리 표시 */}
                     {distances[res.id] && (
-                      <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                      <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 whitespace-nowrap">
                         📍 {distances[res.id] < 1000
                             ? `${Math.round(distances[res.id])}m`
                             : `${(distances[res.id] / 1000).toFixed(1)}km`}
@@ -368,28 +394,65 @@ const App = () => {
         </section>
       </main>
 
-      {/* 모달: 맛집 수동 등록 (직접 타이핑 방식 롤백) */}
+      {/* 모달: 새 맛집 등록 (검색 + 직접 입력 토글 적용) */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <form onSubmit={handleAddRestaurant} className="bg-white rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl">
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-xl font-black">새 맛집 직접 등록하기</h2>
+              <h2 className="text-xl font-black">새 맛집 제보하기</h2>
               <X className="cursor-pointer text-slate-400 hover:text-slate-900 transition" onClick={() => setIsAddModalOpen(false)} />
             </div>
 
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-bold text-slate-500 ml-1">식당 이름</label>
-                <input required className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 focus:border-orange-400 outline-none text-sm" placeholder="예: 성실교회 맛집" value={newRes.name} onChange={e => setNewRes({...newRes, name: e.target.value})} />
+                <input required className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 focus:border-orange-400 outline-none text-sm" placeholder="예: 엘림들깨수제비" value={newRes.name} onChange={e => setNewRes({...newRes, name: e.target.value})} />
               </div>
+
+              {/* 🌟 변경된 주소 입력 섹션 */}
               <div>
-                <label className="text-xs font-bold text-slate-500 ml-1">도로명 주소 (정확하게 입력해야 지도에 표시됩니다)</label>
-                <input required className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 focus:border-orange-400 outline-none text-sm" placeholder="예: 서울 강북구 노해로 50" value={newRes.address} onChange={e => setNewRes({...newRes, address: e.target.value})} />
+                <label className="text-xs font-bold text-slate-500 ml-1">도로명 주소</label>
+                <div className="flex gap-2 mt-1">
+                  <input
+                    required
+                    readOnly={!isManualAddress} // 체크 해제 상태면 타이핑 불가
+                    className={`flex-1 p-3 rounded-xl border border-slate-200 focus:border-orange-400 outline-none text-sm transition ${!isManualAddress ? 'bg-slate-100 text-slate-600' : 'bg-slate-50'}`}
+                    placeholder={isManualAddress ? "주소를 직접 입력하세요" : "주소 검색 버튼을 눌러주세요"}
+                    value={newRes.address}
+                    onChange={e => setNewRes({...newRes, address: e.target.value})}
+                  />
+                  {!isManualAddress && (
+                    <button
+                      type="button"
+                      onClick={handleAddressSearch}
+                      className="px-4 py-3 bg-slate-800 text-white rounded-xl font-bold text-sm whitespace-nowrap hover:bg-slate-700 transition"
+                    >
+                      주소 검색
+                    </button>
+                  )}
+                </div>
+                {/* 수동 입력 전환 체크박스 */}
+                <div className="mt-2 ml-1 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="manualAddress"
+                    checked={isManualAddress}
+                    onChange={(e) => {
+                      setIsManualAddress(e.target.checked);
+                      if (!e.target.checked) setNewRes({...newRes, address: ''}); // 다시 검색모드로 가면 주소 초기화
+                    }}
+                    className="w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-500 cursor-pointer"
+                  />
+                  <label htmlFor="manualAddress" className="text-xs text-slate-500 cursor-pointer font-medium hover:text-slate-700 transition">
+                    원하는 주소가 검색되지 않으면 체크하고 직접 입력하기
+                  </label>
+                </div>
               </div>
+
               <div>
                 <label className="text-xs font-bold text-slate-500 ml-1">카테고리</label>
                 <select className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>
-                  {['한식', '중식', '일식', '양식', '분식', '동남아','카페', '기타'].map(c => <option key={c}>{c}</option>)}
+                  {['한식', '중식', '일식', '양식', '분식', '카페'].map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
 
@@ -434,7 +497,6 @@ const App = () => {
         </div>
       )}
 
-      {/* 🌟 CSS 스타일: 스크롤바 커스텀 및 마커 라벨 디자인 */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
