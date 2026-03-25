@@ -380,16 +380,16 @@ const App = () => {
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-bold text-slate-500 ml-1">식당 이름</label>
-                <input required className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 focus:border-orange-400 outline-none text-sm" placeholder="예: 엘림들깨수제비" value={newRes.name} onChange={e => setNewRes({...newRes, name: e.target.value})} />
+                <input required className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 focus:border-orange-400 outline-none text-sm" placeholder="예: 성실교회 맛집" value={newRes.name} onChange={e => setNewRes({...newRes, name: e.target.value})} />
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 ml-1">도로명 주소 (정확하게 입력해야 지도에 표시됩니다)</label>
-                <input required className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 focus:border-orange-400 outline-none text-sm" placeholder="예: 서울 강북구 삼각산로 67" value={newRes.address} onChange={e => setNewRes({...newRes, address: e.target.value})} />
+                <input required className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 focus:border-orange-400 outline-none text-sm" placeholder="예: 서울 강북구 노해로 50" value={newRes.address} onChange={e => setNewRes({...newRes, address: e.target.value})} />
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 ml-1">카테고리</label>
                 <select className="w-full mt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-orange-400 text-sm" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>
-                  {['한식', '중식', '일식', '양식', '분식', '카페'].map(c => <option key={c}>{c}</option>)}
+                  {['한식', '중식', '일식', '양식', '분식', '동남아','카페', '기타'].map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
 
