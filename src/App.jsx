@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Star, MapPin, Utensils, Plus, Search, MessageSquare,
   X, Loader2, Map as MapIcon, Church, MapPinned, Navigation,
-  Coffee, Sun, Heart, ChevronDown, Trophy, Dices // 🌟 아이콘 추가
+  Coffee, Sun, Heart, ChevronDown, Trophy, Dices
 } from 'lucide-react';
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxdChOl5CumYzkX-rjai2BpD91BQBH193NrKLL2RRIvxGKJFRx0_Si0zIFM_BClJA5M/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw9iIJhdFWfG70E8t0Gm0FwtATNMQiAusfY3uG2zlK3vQ9waszakr0jTQaG1n0iPkzh/exec";
 
 const App = () => {
   // --- [상태 관리] ---
@@ -17,10 +17,9 @@ const App = () => {
   const [isSortByRating, setIsSortByRating] = useState(false);
   const [isCuisineOpen, setIsCuisineOpen] = useState(false);
 
-  // 모달 상태
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-  const [isRankModalOpen, setIsRankModalOpen] = useState(false); // 🌟 랭킹 모달
+  const [isRankModalOpen, setIsRankModalOpen] = useState(false);
 
   const [newRes, setNewRes] = useState({ name: '', category: '한식', address: '' });
   const [newReview, setNewReview] = useState({ rating: 5, comment: '', author: '' });
@@ -31,7 +30,7 @@ const App = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [distances, setDistances] = useState({});
 
-  // Refs
+  // --- [Refs 관리] ---
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const markersRef = useRef({});
@@ -44,6 +43,7 @@ const App = () => {
   const CHURCH_ADDRESS = "서울 강북구 노해로 50";
   const CUISINES = ['한식', '중식', '일식', '양식', '분식', '동남아'];
 
+  // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (cuisineRef.current && !cuisineRef.current.contains(e.target)) setIsCuisineOpen(false);
@@ -94,7 +94,7 @@ const App = () => {
 
   const blockMap = (e) => { if (isMobile) e.stopPropagation(); };
 
-  // --- [데이터 처리 로직] ---
+  // --- [데이터 처리 및 마커 업데이트] ---
   const filteredList = restaurants.filter(r => {
     const matchesSearch = r.name.includes(searchQuery) || r.address.includes(searchQuery);
     let matchesCategory = (activeCategory === '전체') || (activeCategory === '점심추천' && r.isLunch) || (activeCategory === '심방추천' && r.isVisitation) || (r.category === activeCategory);
@@ -112,7 +112,7 @@ const App = () => {
     });
   }, [activeCategory, searchQuery, restaurants, isSortByRating]);
 
-  // 🌟 [기능] 랜덤 식당 뽑기
+  // 🌟 [기능] 랜덤 식당 뽑기 (음식점만)
   const handleRandomPick = () => {
     const onlyFood = restaurants.filter(r => r.category !== '카페');
     if (onlyFood.length === 0) return alert("식당 데이터가 없습니다.");
@@ -121,12 +121,11 @@ const App = () => {
     alert(`🎯 오늘 성실교회 청년들의 선택은? \n\n [ ${random.name} ] 입니다!`);
   };
 
-  // 🌟 [기능] 이번 달 베스트 리뷰어 계산
+  // 🌟 [기능] 명예의 전당 (상위 3명 자르기)
   const getRankData = () => {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-
     const counts = {};
     restaurants.forEach(res => {
       res.reviews.forEach(rev => {
@@ -136,13 +135,13 @@ const App = () => {
         }
       });
     });
-
     return Object.entries(counts)
       .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3); // 🌟 상위 3명만 선택
   };
 
-  // ─── 데이터 로드 ───
+  // --- [데이터 로드] ---
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -175,7 +174,7 @@ const App = () => {
     loadData();
   }, []);
 
-  // ─── 지도 초기화 ───
+  // --- [지도 기능] ---
   const getCoordinates = (address, cb) => {
     if (geocodeCache.current[address]) return cb(geocodeCache.current[address]);
     if (!window.google) return;
@@ -201,7 +200,7 @@ const App = () => {
       mapInstance.current.setCenter(churchLoc);
       new window.google.maps.Marker({
         map: mapInstance.current, position: churchLoc, title: "성실교회",
-        icon: getPinIcon('#FB7185'),
+        icon: getPinIcon('#FB7185'), // 부드러운 로즈 레드
         label: { text: "수유 성실교회", className: "church-marker-label" }
       });
       restaurants.forEach(res => {
@@ -241,6 +240,7 @@ const App = () => {
     });
   };
 
+  // --- [리뷰 및 맛집 제출] ---
   const handleReviewSubmit = async (e) => {
     e.preventDefault(); setIsSubmitting(true);
     const reviewData = { restaurant: selectedRes.name, address: selectedRes.address, category: selectedRes.category, rating: Number(newReview.rating), comment: newReview.comment, author: newReview.author, timestamp: new Date().toISOString() };
@@ -278,7 +278,7 @@ const App = () => {
     finally { setIsSubmitting(false); setIsAddModalOpen(false); setNewRes({ name: '', category: '한식', address: '' }); setNewReview({ rating: 5, comment: '', author: '' }); setIsManualAddress(false); }
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-orange-500" size={40} /></div>;
+  if (loading) return <div className="h-screen flex items-center justify-center bg-white"><Loader2 className="animate-spin text-rose-400" size={40} /></div>;
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col lg:flex-row bg-white font-sans">
@@ -286,44 +286,28 @@ const App = () => {
       {/* 🗺️ 지도 영역 */}
       <div className="relative flex-1 h-1/2 lg:h-full order-1 lg:order-2">
         <div ref={mapRef} className="w-full h-full" />
-
-        {/* 🌟 상단 액션 바 */}
         <div className="absolute top-4 left-4 right-4 z-10 flex flex-col gap-2 pointer-events-none">
           <div className="flex items-center gap-2">
             <div className="flex-1 lg:max-w-xs bg-white rounded-2xl shadow-xl flex items-center px-4 py-3 gap-3 pointer-events-auto border border-slate-100">
               <div className="bg-orange-500 p-1.5 rounded-lg shrink-0 shadow-sm"><Utensils className="text-white" size={14} /></div>
-              <span className="font-black text-sm text-slate-800">성실 맛집 <span className="text-orange-500">Map</span></span>
+              <span className="font-black text-sm text-slate-800 tracking-tight">성실 맛집 <span className="text-orange-500">Map</span></span>
             </div>
-
-            {/* 🎲 랜덤 버튼 */}
-            <button onClick={handleRandomPick} className="bg-white text-slate-700 w-11 h-11 rounded-2xl shadow-xl flex items-center justify-center shrink-0 active:scale-95 transition pointer-events-auto border border-slate-100">
-              <Dices size={20} className="text-orange-500" />
-            </button>
-
-            {/* 🏆 랭킹 버튼 */}
-            <button onClick={() => setIsRankModalOpen(true)} className="bg-white text-slate-700 w-11 h-11 rounded-2xl shadow-xl flex items-center justify-center shrink-0 active:scale-95 transition pointer-events-auto border border-slate-100">
-              <Trophy size={20} className="text-yellow-500" />
-            </button>
-
-            {/* ➕ 추가 버튼 */}
-            <button onClick={() => setIsAddModalOpen(true)} className="bg-orange-500 text-white w-11 h-11 rounded-2xl shadow-xl flex items-center justify-center shrink-0 active:scale-95 transition pointer-events-auto border-2 border-white">
-              <Plus size={22} />
-            </button>
+            <button onClick={handleRandomPick} className="bg-white text-slate-700 w-11 h-11 rounded-2xl shadow-xl flex items-center justify-center shrink-0 active:scale-95 transition pointer-events-auto border border-slate-100"><Dices size={20} className="text-orange-500" /></button>
+            <button onClick={() => setIsRankModalOpen(true)} className="bg-white text-slate-700 w-11 h-11 rounded-2xl shadow-xl flex items-center justify-center shrink-0 active:scale-95 transition pointer-events-auto border border-slate-100"><Trophy size={20} className="text-yellow-500" /></button>
+            <button onClick={() => setIsAddModalOpen(true)} className="bg-orange-500 text-white w-11 h-11 rounded-2xl shadow-xl flex items-center justify-center shrink-0 active:scale-95 transition pointer-events-auto border-2 border-white"><Plus size={22} /></button>
           </div>
-
           <div className="flex gap-2 pointer-events-auto overflow-x-auto no-scrollbar pb-1">
             <button onClick={() => setActiveCategory(activeCategory === '점심추천' ? '전체' : '점심추천')} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl shadow-lg font-bold text-[11px] whitespace-nowrap transition-all active:scale-95 ${activeCategory === '점심추천' ? 'bg-slate-800 text-white' : 'bg-white text-slate-800 border border-slate-100'}`}><Sun size={14} /> 점심먹기 좋은 곳</button>
             <button onClick={() => setActiveCategory(activeCategory === '심방추천' ? '전체' : '심방추천')} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl shadow-lg font-bold text-[11px] whitespace-nowrap transition-all active:scale-95 ${activeCategory === '심방추천' ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border border-blue-100'}`}><Heart size={14} /> 심방하기 좋은 곳</button>
           </div>
         </div>
-
         <button onClick={moveToMyLocation} className="absolute right-4 z-10 bg-white p-3.5 rounded-full shadow-2xl border active:scale-90 transition-all" style={{ bottom: isMobile ? `calc(100vh - ${sheetY}px + 20px)` : '2rem' }}><Navigation size={22} className="text-slate-700" /></button>
       </div>
 
-      {/* 📝 바텀 시트 */}
+      {/* 📝 바텀 시트 (리스트 & 상세) */}
       <section
         className={`z-20 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.12)] flex flex-col transition-all duration-300
-                    ${isMobile ? 'fixed left-0 right-0 bottom-0 rounded-t-[32px]' : 'relative w-[400px] h-full shadow-none border-r border-slate-100'}`}
+                    ${isMobile ? 'fixed left-0 right-0 bottom-0 rounded-t-[32px]' : 'relative w-[400px] h-full shadow-none border-r border-slate-200'}`}
         style={isMobile ? { transform: `translateY(${sheetY}px)`, height: 'calc(100vh - 60px)', transition: handleDragRef.current.active ? 'none' : 'transform 0.3s ease-out' } : {}}
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
       >
@@ -335,7 +319,6 @@ const App = () => {
               <Search className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
               <input type="text" placeholder="맛집 이름, 주소 검색..." className="w-full pl-10 pr-4 py-3 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-orange-400 text-base lg:text-sm transition-all" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             </div>
-
             <div className="flex items-center gap-2 mt-3 relative">
               <button onClick={() => { setActiveCategory('전체'); setIsSortByRating(false); }} className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-all ${activeCategory === '전체' ? 'bg-orange-500 text-white' : 'bg-white text-slate-500'}`}>전체</button>
               <div className="relative" ref={cuisineRef}>
@@ -356,25 +339,17 @@ const App = () => {
               </button>
             </div>
           </div>
-
           <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5 bg-white" onTouchStart={blockMap} style={{ overscrollBehavior: 'contain' }}>
             {activeCategory === '전체' && <button onClick={() => setSelectedRes(null)} className="w-full text-left p-4 rounded-3xl bg-pink-50/50 border border-pink-100 shadow-sm active:scale-95 transition-all"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-pink-100 rounded-2xl flex items-center justify-center shrink-0 shadow-inner"><Church size={18} className="text-rose-400" /></div><div><h3 className="font-bold text-rose-500 text-sm">수유 성실교회</h3><p className="text-[11px] text-rose-300 font-medium">우리들의 베이스캠프 ⛪</p></div></div></button>}
             {filteredList.map(res => (
               <div key={res.id} onClick={() => setSelectedRes(res)} className={`p-4 rounded-3xl cursor-pointer border-2 transition-all active:scale-98 ${selectedRes?.id === res.id ? 'bg-orange-50 border-orange-400 shadow-md' : 'bg-white border-slate-50 shadow-sm hover:shadow-md'}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-bold text-slate-900 text-sm truncate pr-2">{res.name}</h3>
-                  <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold shrink-0 ${res.category === '카페' ? 'bg-orange-100 text-orange-600' : 'bg-slate-800 text-white'}`}>{res.category}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-0.5 bg-white border border-slate-100 px-2 py-0.5 rounded-full shadow-sm"><Star size={12} className="fill-orange-400 text-orange-400" /><span className="text-xs font-black text-slate-700">{res.avgRating}</span></div>
-                  {distances[res.id] && <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">⛪ {Math.round(distances[res.id])}m</span>}
-                </div>
+                <div className="flex items-center justify-between mb-2"><h3 className="font-bold text-slate-900 text-sm truncate pr-2">{res.name}</h3><span className={`text-[10px] px-2.5 py-1 rounded-full font-bold shrink-0 ${res.category === '카페' ? 'bg-orange-100 text-orange-600' : 'bg-slate-800 text-white'}`}>{res.category}</span></div>
+                <div className="flex items-center gap-2"><div className="flex items-center gap-0.5 bg-white border border-slate-100 px-2 py-0.5 rounded-full shadow-sm"><Star size={12} className="fill-orange-400 text-orange-400" /><span className="text-xs font-black text-slate-700">{res.avgRating}</span></div>{distances[res.id] && <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">⛪ {Math.round(distances[res.id])}m</span>}</div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* 상세 화면 */}
         {selectedRes && (
           <div className={`flex-1 flex flex-col overflow-hidden bg-white ${isMobile ? '' : 'absolute inset-0 z-30'}`}>
             <div className="px-5 pt-2 pb-5 border-b border-slate-50 shrink-0">
@@ -386,7 +361,7 @@ const App = () => {
         )}
       </section>
 
-      {/* ── 🌟 [모달] 명예의 전당 (게이미피케이션) ── */}
+      {/* ── 🌟 [모달] 명예의 전당 (TOP 3) ── */}
       {isRankModalOpen && (
         <div className="fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[100] backdrop-blur-md p-4" onClick={() => setIsRankModalOpen(false)}>
           <div className="bg-white rounded-[40px] w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
@@ -394,23 +369,23 @@ const App = () => {
               <button onClick={() => setIsRankModalOpen(false)} className="absolute top-4 right-4 bg-white/20 p-1.5 rounded-full hover:bg-white/30 transition-colors"><X size={20}/></button>
               <Trophy size={48} className="mx-auto mb-3 drop-shadow-lg" />
               <h2 className="text-2xl font-black italic tracking-tighter">HALL OF FAME</h2>
-              <p className="text-sm font-bold opacity-90 mt-1">{new Date().getMonth() + 1}월의 맛집 전도사 랭킹</p>
+              <p className="text-sm font-bold opacity-90 mt-1">{new Date().getMonth() + 1}월의 맛집 전도사 TOP 3</p>
             </div>
-            <div className="p-6 space-y-3 max-h-[50vh] overflow-y-auto no-scrollbar">
+            <div className="p-6 space-y-4">
               {getRankData().length > 0 ? getRankData().map((user, i) => (
-                <div key={i} className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${i === 0 ? 'bg-yellow-50 border-yellow-200 scale-105' : 'bg-slate-50 border-slate-100'}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-yellow-400 text-white' : 'bg-slate-200 text-slate-500'}`}>{i + 1}</div>
-                  <span className="flex-1 font-black text-slate-800">{user.name} 지체</span>
-                  <span className="font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full text-xs">{user.count}건</span>
+                <div key={i} className={`flex items-center gap-4 p-5 rounded-3xl border-2 transition-all ${i === 0 ? 'bg-yellow-50 border-yellow-200 scale-105' : 'bg-slate-50 border-slate-100'}`}>
+                  <div className="text-2xl">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</div>
+                  <span className="flex-1 font-black text-slate-800 text-lg">{user.name}</span>
+                  <span className="font-bold text-orange-600 bg-orange-100 px-4 py-1.5 rounded-full text-sm">{user.count}건</span>
                 </div>
               )) : <p className="text-center text-slate-400 py-10 font-medium italic">아직 이번 달 리뷰가 없어요 🥲</p>}
             </div>
-            <div className="p-6 bg-slate-50 text-center"><p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">Seongsil Gourmet Community</p></div>
+            <div className="p-6 bg-slate-50 text-center border-t border-slate-100"><p className="text-[11px] text-slate-400 font-black uppercase tracking-widest">Seongsil Gourmet Community</p></div>
           </div>
         </div>
       )}
 
-      {/* ── 모달: 새 맛집 등록 ── */}
+      {/* ── [나머지 모달들: 새 맛집 & 리뷰 쓰기] ── */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-slate-900/70 flex items-center justify-center z-50 backdrop-blur-md p-4">
           <form onSubmit={handleAddRestaurant} className="bg-white rounded-[40px] w-full max-w-md flex flex-col shadow-2xl" style={{ maxHeight: '90vh' }}>
@@ -424,16 +399,16 @@ const App = () => {
                     <button type="button" onClick={searchPlaces} className="px-5 py-3.5 bg-slate-800 text-white rounded-2xl font-black text-xs active:scale-95 transition-all shadow-lg">{isSearching ? <Loader2 className="animate-spin" size={18}/> : '검색'}</button>
                   </div>
                   {searchResults.length > 0 && <ul className="max-h-48 overflow-y-auto bg-white border border-slate-100 rounded-2xl divide-y no-scrollbar shadow-xl">{searchResults.map(p => <li key={p.id} onClick={() => handleSelectPlace(p)} className="p-4 hover:bg-orange-50 cursor-pointer active:bg-orange-100"><div className="font-black text-sm text-slate-800">{p.place_name}</div><div className="text-[11px] font-bold text-slate-400 mt-1">{p.address_name}</div></li>)}</ul>}
-                  {newRes.name && <div className="p-4 bg-white rounded-2xl border-2 border-orange-400 shadow-md"><p className="font-black text-orange-600 text-sm">{newRes.name}</p><p className="text-[11px] text-slate-500 font-bold mt-1">{newRes.address}</p></div>}
+                  {newRes.name && <div className="p-4 bg-white rounded-2xl border-2 border-orange-400 shadow-md animate-pulse"><p className="font-black text-orange-600 text-sm">{newRes.name}</p><p className="text-[11px] text-slate-500 font-bold mt-1">{newRes.address}</p></div>}
                 </div>
               ) : (
                 <div className="space-y-3 p-5 bg-orange-50/50 rounded-[28px] border-2 border-orange-100">
                   <input required className="w-full p-4 rounded-2xl outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" placeholder="식당 이름" value={newRes.name} onChange={e => setNewRes({...newRes, name: e.target.value})} />
-                  <input required className="w-full p-4 rounded-2xl outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" placeholder="도로명 주소" value={newRes.address} onChange={e => setNewRes({...newRes, address: e.target.value})} />
+                  <input required className="w-full p-4 rounded-2xl border-none shadow-sm outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" placeholder="도로명 주소" value={newRes.address} onChange={e => setNewRes({...newRes, address: e.target.value})} />
                 </div>
               )}
               <div className="space-y-4">
-                 <div><select className="w-full mt-2 p-4 bg-slate-50 rounded-2xl outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>{['한식', '중식', '일식', '양식', '분식','동남아', '카페', '기타'].map(c => <option key={c}>{c}</option>)}</select></div>
+                 <div><select className="w-full mt-2 p-4 bg-slate-50 rounded-2xl outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>{['한식', '중식', '일식', '양식', '분식', '동남아', '카페', '기타'].map(c => <option key={c}>{c}</option>)}</select></div>
                  <div className="pt-4 border-t border-slate-100 space-y-5 text-center">
                     <p className="text-sm font-black text-slate-700">첫 리뷰 남기기 ✨</p>
                     <div className="flex gap-2.5 justify-center">{[1,2,3,4,5].map(i => <Star key={i} size={32} className={`cursor-pointer transition-all hover:scale-125 ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />)}</div>
@@ -442,19 +417,18 @@ const App = () => {
                  </div>
               </div>
             </div>
-            <div className="p-7 border-t shrink-0 bg-white"><button type="submit" disabled={isSubmitting} className="w-full py-4.5 bg-orange-500 text-white rounded-[24px] font-black shadow-xl active:scale-95 transition-all flex justify-center items-center gap-2">{isSubmitting ? <Loader2 className="animate-spin" size={20}/> : "맛집 등록 완료 🚀"}</button></div>
+            <div className="p-7 border-t shrink-0 bg-white rounded-b-[40px]"><button type="submit" disabled={isSubmitting} className="w-full py-4.5 bg-orange-500 text-white rounded-[24px] font-black shadow-xl active:scale-95 transition-all flex justify-center items-center gap-2">{isSubmitting ? <Loader2 className="animate-spin" size={20}/> : "맛집 등록 완료 🚀"}</button></div>
           </form>
         </div>
       )}
 
-      {/* ── 모달: 리뷰 쓰기 ── */}
       {isReviewModalOpen && selectedRes && (
         <div className="fixed inset-0 bg-slate-900/70 flex items-center justify-center z-50 backdrop-blur-md p-4">
           <form onSubmit={handleReviewSubmit} className="bg-white rounded-[40px] w-full max-w-sm p-8 space-y-6 shadow-2xl">
             <h2 className="text-xl font-black text-center text-slate-800">"{selectedRes.name}" <br/>리뷰 남기기 ✍️</h2>
             <div className="flex gap-2.5 justify-center py-2">{[1,2,3,4,5].map(i => <Star key={i} size={38} className={`cursor-pointer transition-all hover:scale-125 ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />)}</div>
             <textarea required className="w-full p-4 bg-slate-50 rounded-[24px] shadow-inner h-36 text-base lg:text-sm outline-none focus:ring-2 focus:ring-orange-400" placeholder="맛, 분위기는 어떠셨나요?" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})}></textarea>
-            <input required className="w-full p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-orange-400 text-base lg:text-sm" placeholder="닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
+            <input required className="w-full p-4 bg-slate-50 rounded-2xl shadow-inner text-base lg:text-sm outline-none focus:ring-2 focus:ring-orange-400" placeholder="닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
             <div className="flex gap-3 pt-2"><button type="button" onClick={() => setIsReviewModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-sm transition-colors">취소</button><button type="submit" disabled={isSubmitting} className="flex-[2] py-4 bg-orange-500 text-white rounded-2xl font-black text-sm shadow-lg active:scale-95 transition-all">{isSubmitting ? <Loader2 className="animate-spin m-auto" size={20}/> : "등록하기"}</button></div>
           </form>
         </div>
@@ -464,11 +438,9 @@ const App = () => {
         * { -webkit-tap-highlight-color: transparent; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
         .restaurant-marker-label { background-color: white; color: #1e293b; font-size: 11px; padding: 4px 10px; border-radius: 10px; border: 2.2px solid #1e293b; box-shadow: 0 4px 10px rgba(0,0,0,0.18); margin-top: -32px; white-space: nowrap; pointer-events: none; font-weight: 800; }
         .cafe-marker-label { background-color: white; color: #f97316; font-size: 11px; padding: 4px 10px; border-radius: 10px; border: 2.2px solid #f97316; box-shadow: 0 4px 10px rgba(249,115,22,0.18); margin-top: -32px; white-space: nowrap; pointer-events: none; font-weight: 800; }
         .church-marker-label { background-color: white; color: #FB7185; font-size: 11px; padding: 5px 12px; border-radius: 10px; border: 2.5px solid #FB7185; box-shadow: 0 4px 10px rgba(251,113,133,0.2); margin-top: -32px; white-space: nowrap; pointer-events: none; font-weight: 900; }
-
         input, select, textarea { font-size: 16px !important; }
       `}</style>
     </div>
