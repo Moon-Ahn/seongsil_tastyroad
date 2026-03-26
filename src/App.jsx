@@ -39,7 +39,7 @@ const App = () => {
   const cuisineRef = useRef(null);
 
   const CHURCH_ADDRESS = "서울 강북구 노해로 50";
-  const CUISINES = ['한식', '중식', '일식', '양식', '분식'];
+  const CUISINES = ['한식', '중식', '일식', '양식', '분식', '동남아'];
 
   // ─── 유틸리티: 드롭다운 외부 클릭 시 닫기 ───
   useEffect(() => {
@@ -92,7 +92,7 @@ const App = () => {
 
   const blockMap = (e) => { if (isMobile) e.stopPropagation(); };
 
-  // ─── 🌟 정렬 및 필터링 로직 (기본: 교회에서 가까운 순) ───
+  // ─── 정렬 및 필터링 로직 (기본: 교회에서 가까운 순) ───
   const filteredList = restaurants
     .filter(r => {
       const matchesSearch = r.name.includes(searchQuery) || r.address.includes(searchQuery);
@@ -100,10 +100,7 @@ const App = () => {
       return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
-      // 1순위: 별점순 토글이 켜져있을 때
       if (isSortByRating) return Number(b.avgRating) - Number(a.avgRating);
-
-      // 🌟 기본(2순위): 교회에서 가까운 순 (거리순)
       const distA = distances[a.id] || 999999;
       const distB = distances[b.id] || 999999;
       return distA - distB;
@@ -182,9 +179,13 @@ const App = () => {
         getCoordinates(res.address, (loc) => {
           const themeColor = res.category === '카페' ? '#F97316' : '#1E293B';
           const labelClass = res.category === '카페' ? 'cafe-marker-label' : 'restaurant-marker-label';
+
+          // 🌟 [아이디어 반영] 지도 라벨에 별점 추가 (리뷰가 있을 때만)
+          const labelText = res.reviews.length > 0 ? `${res.name} ★${res.avgRating}` : res.name;
+
           const marker = new window.google.maps.Marker({
             map: mapInstance.current, position: loc, title: res.name, icon: getPinIcon(themeColor),
-            label: { text: res.name, className: labelClass }
+            label: { text: labelText, className: labelClass }
           });
           marker.addListener("click", () => { setSelectedRes(res); if (isMobile) setSheetY(60); });
           markersRef.current[res.id] = marker;
@@ -266,7 +267,6 @@ const App = () => {
             </div>
             <button onClick={() => setIsAddModalOpen(true)} className="bg-orange-500 text-white w-12 h-12 rounded-2xl shadow-xl flex items-center justify-center shrink-0 active:scale-95 transition pointer-events-auto border-2 border-white"><Plus size={20} /></button>
           </div>
-
           <div className="flex gap-2 pointer-events-auto overflow-x-auto no-scrollbar pb-1">
             <button onClick={() => setActiveCategory(activeCategory === '점심추천' ? '전체' : '점심추천')} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl shadow-lg font-bold text-[11px] whitespace-nowrap transition-all active:scale-95 ${activeCategory === '점심추천' ? 'bg-slate-800 text-white' : 'bg-white text-slate-800 border border-slate-100'}`}><Sun size={14} /> 점심먹기 좋은 곳</button>
             <button onClick={() => setActiveCategory(activeCategory === '심방추천' ? '전체' : '심방추천')} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl shadow-lg font-bold text-[11px] whitespace-nowrap transition-all active:scale-95 ${activeCategory === '심방추천' ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border border-blue-100'}`}><Heart size={14} /> 심방하기 좋은 곳</button>
@@ -294,13 +294,12 @@ const App = () => {
             <div className="flex items-center gap-2 mt-3 relative">
               <button onClick={() => { setActiveCategory('전체'); setIsSortByRating(false); }} className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-all ${activeCategory === '전체' ? 'bg-orange-500 text-white' : 'bg-white text-slate-500'}`}>전체</button>
 
-              {/* 요리 종류 드롭다운 */}
               <div className="relative" ref={cuisineRef}>
                 <button onClick={() => setIsCuisineOpen(!isCuisineOpen)} className={`flex items-center gap-1 px-4 py-1.5 rounded-full text-xs font-bold border transition-all ${CUISINES.includes(activeCategory) ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600'}`}>
                   {CUISINES.includes(activeCategory) ? activeCategory : '요리 분류'} <ChevronDown size={14} className={`transition-transform ${isCuisineOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {isCuisineOpen && (
-                  <div className="absolute top-full left-0 mt-2 w-32 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute top-full left-0 mt-2 w-32 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden">
                     {CUISINES.map(c => (
                       <button key={c} onClick={() => { setActiveCategory(c); setIsCuisineOpen(false); }} className={`w-full text-left px-4 py-3 text-xs font-bold hover:bg-slate-50 transition-colors ${activeCategory === c ? 'text-orange-500' : 'text-slate-600'}`}>{c}</button>
                     ))}
@@ -316,14 +315,12 @@ const App = () => {
             </div>
           </div>
 
-          {/* 🌟 목록 리스트: 기본 거리순 정렬 반영 */}
           <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5 bg-white" onTouchStart={blockMap} style={{ overscrollBehavior: 'contain' }}>
             {activeCategory === '전체' && <button onClick={() => setSelectedRes(null)} className="w-full text-left p-4 rounded-3xl bg-pink-50/50 border border-pink-100 shadow-sm active:scale-95 transition-all"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-pink-100 rounded-2xl flex items-center justify-center shrink-0 shadow-inner"><Church size={18} className="text-rose-400" /></div><div><h3 className="font-bold text-rose-500 text-sm">수유 성실교회</h3><p className="text-[11px] text-rose-300 font-medium">우리들의 베이스캠프 ⛪</p></div></div></button>}
             {filteredList.map(res => (
               <div key={res.id} onClick={() => setSelectedRes(res)} className={`p-4 rounded-3xl cursor-pointer border-2 transition-all active:scale-98 ${selectedRes?.id === res.id ? 'bg-orange-50 border-orange-400 shadow-md' : 'bg-white border-slate-50 shadow-sm hover:shadow-md'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-bold text-slate-900 text-sm truncate pr-2">{res.name}</h3>
-                  {/* 🌟 점심/심방 배지 삭제됨 */}
                   <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold shrink-0 ${res.category === '카페' ? 'bg-orange-100 text-orange-600' : 'bg-slate-800 text-white'}`}>{res.category}</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -332,7 +329,6 @@ const App = () => {
                 </div>
               </div>
             ))}
-            {filteredList.length === 0 && <div className="py-20 text-center text-slate-400 text-sm font-medium">검색 결과가 없습니다 🥲</div>}
           </div>
         </div>
 
@@ -347,7 +343,7 @@ const App = () => {
         )}
       </section>
 
-      {/* --- 모달: 새 맛집 등록 --- */}
+      {/* --- 모달들 생략 없이 전체 포함 --- */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-slate-900/70 flex items-center justify-center z-50 backdrop-blur-md p-4">
           <form onSubmit={handleAddRestaurant} className="bg-white rounded-[40px] w-full max-w-md flex flex-col shadow-2xl" style={{ maxHeight: '90vh' }}>
@@ -370,7 +366,7 @@ const App = () => {
                 </div>
               )}
               <div className="space-y-4">
-                 <div><select className="w-full mt-2 p-4 bg-slate-50 rounded-2xl outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>{['한식', '중식', '일식', '양식', '분식', '카페', '기타'].map(c => <option key={c}>{c}</option>)}</select></div>
+                 <div><select className="w-full mt-2 p-4 bg-slate-50 rounded-2xl outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>{['한식', '중식', '일식', '양식', '분식', '동남아', '카페', '기타'].map(c => <option key={c}>{c}</option>)}</select></div>
                  <div className="pt-4 border-t border-slate-100 space-y-5 text-center">
                     <p className="text-sm font-black text-slate-700">첫 리뷰 남기기 ✨</p>
                     <div className="flex gap-2.5 justify-center">{[1,2,3,4,5].map(i => <Star key={i} size={32} className={`cursor-pointer transition-all hover:scale-125 ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />)}</div>
@@ -384,14 +380,13 @@ const App = () => {
         </div>
       )}
 
-      {/* --- 모달: 리뷰 쓰기 --- */}
       {isReviewModalOpen && selectedRes && (
         <div className="fixed inset-0 bg-slate-900/70 flex items-center justify-center z-50 backdrop-blur-md p-4">
           <form onSubmit={handleReviewSubmit} className="bg-white rounded-[40px] w-full max-w-sm p-8 space-y-6 shadow-2xl">
             <h2 className="text-xl font-black text-center text-slate-800">"{selectedRes.name}" <br/>리뷰 남기기 ✍️</h2>
             <div className="flex gap-2.5 justify-center py-2">{[1,2,3,4,5].map(i => <Star key={i} size={38} className={`cursor-pointer transition-all hover:scale-125 ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />)}</div>
             <textarea required className="w-full p-4 bg-slate-50 rounded-[24px] shadow-inner h-36 text-base lg:text-sm outline-none focus:ring-2 focus:ring-orange-400" placeholder="맛, 분위기는 어떠셨나요?" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})}></textarea>
-            <input required className="w-full p-4 bg-slate-50 rounded-2xl shadow-inner text-base lg:text-sm outline-none focus:ring-2 focus:ring-orange-400" placeholder="닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
+            <input required className="w-full p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-orange-400 text-base lg:text-sm" placeholder="닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
             <div className="flex gap-3 pt-2"><button type="button" onClick={() => setIsReviewModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-sm transition-colors">취소</button><button type="submit" disabled={isSubmitting} className="flex-[2] py-4 bg-orange-500 text-white rounded-2xl font-black text-sm shadow-lg active:scale-95 transition-all">{isSubmitting ? <Loader2 className="animate-spin m-auto" size={20}/> : "등록하기"}</button></div>
           </form>
         </div>
