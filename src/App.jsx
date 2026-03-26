@@ -303,9 +303,9 @@ const App = () => {
         .scrolling-touch { -webkit-overflow-scrolling: touch; }
 
         /* 🌟 위치 멀어지는 현상 해결을 위해 마진 조정 (-22px) */
-        .restaurant-marker-label { background-color: white; color: #1e293b; font-size: 11px; padding: 4px 10px; border-radius: 10px; border: 2.2px solid #1e293b; box-shadow: 0 4px 10px rgba(0,0,0,0.18); margin-top: -24px; white-space: nowrap; pointer-events: none; font-weight: 800; }
-        .cafe-marker-label { background-color: white; color: #f97316; font-size: 11px; padding: 4px 10px; border-radius: 10px; border: 2.2px solid #f97316; box-shadow: 0 4px 10px rgba(249,115,22,0.18); margin-top: -24px; white-space: nowrap; pointer-events: none; font-weight: 800; }
-        .church-marker-label { background-color: white; color: #FB7185; font-size: 11px; padding: 5px 12px; border-radius: 10px; border: 2.5px solid #FB7185; box-shadow: 0 4px 10px rgba(251,113,133,0.2); margin-top: -24px; white-space: nowrap; pointer-events: none; font-weight: 900; }
+        .restaurant-marker-label { background-color: white; color: #1e293b; font-size: 11px; padding: 4px 10px; border-radius: 10px; border: 2.2px solid #1e293b; box-shadow: 0 4px 10px rgba(0,0,0,0.18); margin-top: -28px; white-space: nowrap; pointer-events: none; font-weight: 800; }
+        .cafe-marker-label { background-color: white; color: #f97316; font-size: 11px; padding: 4px 10px; border-radius: 10px; border: 2.2px solid #f97316; box-shadow: 0 4px 10px rgba(249,115,22,0.18); margin-top: -28px; white-space: nowrap; pointer-events: none; font-weight: 800; }
+        .church-marker-label { background-color: white; color: #FB7185; font-size: 11px; padding: 5px 12px; border-radius: 10px; border: 2.5px solid #FB7185; box-shadow: 0 4px 10px rgba(251,113,133,0.2); margin-top: -28px; white-space: nowrap; pointer-events: none; font-weight: 900; }
         .certified-border { border: 2.5px solid #D4AF37 !important; box-shadow: 0 0 15px rgba(212, 175, 55, 0.4) !important; }
         input, select, textarea { font-size: 16px !important; }
       `}</style>
