@@ -128,7 +128,7 @@ const App = () => {
   useEffect(() => {
     if (loading || !window.google || !mapRef.current || mapInstance.current) return;
     mapInstance.current = new window.google.maps.Map(mapRef.current, {
-      zoom: 16, mapTypeControl: false, streetViewControl: false, disableDefaultUI: true,
+      zoom: 16, mapTypeControl: false, streetViewControl: false, disableDefaultUI: true,gestureHandling: 'greedy',
       styles: [{ featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }, { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] }]
     });
     getCoordinates(CHURCH_ADDRESS, (churchLoc) => {
