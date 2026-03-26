@@ -118,7 +118,7 @@ const App = () => {
     if (onlyFood.length === 0) return alert("식당 데이터가 없습니다.");
     const random = onlyFood[Math.floor(Math.random() * onlyFood.length)];
     setSelectedRes(random);
-    alert(`🎯 오늘 성실교회 청년들의 선택은? \n\n [ ${random.name} ] 입니다!`);
+    alert(`🎲 랜덤 식당 뽑기! \n\n [ ${random.name} ] 입니다!`);
   };
 
   // 🌟 [기능] 명예의 전당 (상위 3명 자르기)
