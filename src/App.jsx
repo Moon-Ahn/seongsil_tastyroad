@@ -249,7 +249,7 @@ const App = () => {
             </div>
             {/* 안내 텍스트 */}
             <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-               {isSheetExpanded ? "Tap to see map" : "Tap to see list"}
+               {isSheetExpanded ? "눌러서 지도 보기" : "눌러서 맛집 리스트 보기    "}
             </span>
           </div>
         )}
