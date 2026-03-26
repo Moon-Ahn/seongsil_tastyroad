@@ -32,11 +32,13 @@ const App = () => {
   const CHURCH_ADDRESS = "서울 강북구 노해로 50";
   const CATEGORIES = ['전체', '한식', '중식', '일식', '양식', '분식', '카페'];
 
-  // ─── 바텀시트 / 반응형 ───────────────────────────────────────────────
+  // ─── 바텀시트 / 반응형 로직 ───────────────────────────────────────────────
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
-  const peekHeight = 160;
+  const peekHeight = 160; // 접혔을 때 높이
   const [sheetY, setSheetY] = useState(window.innerWidth < 1024 ? window.innerHeight - peekHeight : 0);
   const handleDragRef = useRef({ active: false, startY: 0, startSheetY: 0 });
+  const listRef = useRef(null);
+  const detailRef = useRef(null);
 
   useEffect(() => {
     const onResize = () => {
@@ -49,21 +51,40 @@ const App = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const onHandleTouchStart = (e) => {
+  // 식당 선택 시 시트를 위로 올림
+  useEffect(() => {
+    if (selectedRes && isMobile) {
+      setSheetY(60); // 상세 정보가 잘 보이도록 위로 올림
+    }
+  }, [selectedRes, isMobile]);
+
+  // 터치 이벤트 핸들러
+  const onTouchStart = (e) => {
     if (!isMobile) return;
-    handleDragRef.current = { active: true, startY: e.touches[0].clientY, startSheetY: sheetY };
+    const isHandle = e.target.closest('.sheet-handle-area');
+    if (isHandle) {
+      handleDragRef.current = { active: true, startY: e.touches[0].clientY, startSheetY: sheetY };
+    }
   };
-  const onHandleTouchMove = (e) => {
+
+  const onTouchMove = (e) => {
     if (!handleDragRef.current.active || !isMobile) return;
-    e.preventDefault();
+
+    // 브라우저 기본 스크롤 방해 금지
     const delta = e.touches[0].clientY - handleDragRef.current.startY;
     const newY = Math.max(60, Math.min(handleDragRef.current.startSheetY + delta, window.innerHeight - peekHeight));
+
+    if (e.cancelable) e.preventDefault();
     setSheetY(newY);
   };
-  const onHandleTouchEnd = () => {
+
+  const onTouchEnd = () => {
     if (!handleDragRef.current.active || !isMobile) return;
     handleDragRef.current.active = false;
-    setSheetY(sheetY < window.innerHeight * 0.45 ? 60 : window.innerHeight - peekHeight);
+
+    // 자석 효과 (Snap)
+    if (sheetY < window.innerHeight * 0.45) setSheetY(60);
+    else setSheetY(window.innerHeight - peekHeight);
   };
 
   const blockMap = (e) => { if (isMobile) e.stopPropagation(); };
@@ -74,7 +95,7 @@ const App = () => {
     height: `calc(100vh - 60px)`,
   } : {};
 
-  // ─── 내 위치 ────────────────────────────────────────────────
+  // ─── 기능 함수 (내 위치, 데이터 로드 등) ───────────────────────────────────
   const moveToMyLocation = () => {
     if (!navigator.geolocation) return alert("GPS를 지원하지 않습니다.");
     navigator.geolocation.getCurrentPosition(
@@ -92,11 +113,10 @@ const App = () => {
     );
   };
 
-  // ─── 데이터 ────────────────────────────────────────────────
   const fetchRestaurants = async () => {
     try {
       const res = await fetch(SCRIPT_URL);
-      const data = await res.json();
+      const data = await response.json();
       const grouped = data.reduce((acc, curr) => {
         if (!acc[curr.restaurant]) acc[curr.restaurant] = { id: curr.restaurant, name: curr.restaurant, address: curr.address || "", category: curr.category || "기타", reviews: [], avgRating: 0 };
         acc[curr.restaurant].reviews.push({ rating: Number(curr.rating), comment: curr.comment, author: curr.author, timestamp: curr.timestamp });
@@ -108,9 +128,32 @@ const App = () => {
         return r;
       });
       setRestaurants(list);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) {
+        // 데이터 로딩 실패 시 더미 데이터나 에러 로그 처리
+    } finally { setLoading(false); }
   };
-  useEffect(() => { fetchRestaurants(); }, []);
+
+  // 실데이터 연동을 위한 fetch (에러 방지용)
+  useEffect(() => {
+    const loadData = async () => {
+        try {
+            const response = await fetch(SCRIPT_URL);
+            const data = await response.json();
+            const grouped = data.reduce((acc, curr) => {
+                if (!acc[curr.restaurant]) acc[curr.restaurant] = { id: curr.restaurant, name: curr.restaurant, address: curr.address || "", category: curr.category || "기타", reviews: [], avgRating: 0 };
+                acc[curr.restaurant].reviews.push({ rating: Number(curr.rating), comment: curr.comment, author: curr.author, timestamp: curr.timestamp });
+                return acc;
+            }, {});
+            const list = Object.values(grouped).map(r => {
+                r.avgRating = (r.reviews.reduce((s, v) => s + v.rating, 0) / r.reviews.length).toFixed(1);
+                r.reviews.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                return r;
+            });
+            setRestaurants(list);
+        } catch(e) { console.error(e); } finally { setLoading(false); }
+    };
+    loadData();
+  }, []);
 
   const getCoordinates = (address, cb) => {
     if (geocodeCache.current[address]) return cb(geocodeCache.current[address]);
@@ -201,120 +244,119 @@ const App = () => {
   );
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col lg:flex-row bg-slate-50">
+    <div className="h-screen w-screen overflow-hidden flex flex-col lg:flex-row bg-slate-50 font-sans">
 
-      {/* 🗺️ 지도 영역 (PC에서는 우측 60%) */}
+      {/* 🗺️ 지도 영역 */}
       <div className="relative flex-1 h-1/2 lg:h-full order-1 lg:order-2">
         <div ref={mapRef} className="w-full h-full" />
 
         {/* 상단 헤더 (플로팅) */}
         <div className="absolute top-4 left-4 right-4 z-10 flex items-center gap-3 pointer-events-none">
-          <div className="flex-1 lg:max-w-xs bg-white rounded-2xl shadow-xl flex items-center px-4 py-3 gap-3 pointer-events-auto">
-            <div className="bg-orange-500 p-1.5 rounded-lg shrink-0"><Utensils className="text-white" size={14} /></div>
-            <span className="font-black text-sm">성실 맛집 <span className="text-orange-500">Map</span></span>
+          <div className="flex-1 lg:max-w-xs bg-white rounded-2xl shadow-xl flex items-center px-4 py-3 gap-3 pointer-events-auto border border-slate-100">
+            <div className="bg-orange-500 p-1.5 rounded-lg shrink-0 shadow-sm"><Utensils className="text-white" size={14} /></div>
+            <span className="font-black text-sm tracking-tight text-slate-800">성실 맛집 <span className="text-orange-500">Map</span></span>
           </div>
-          <button onClick={() => setIsAddModalOpen(true)} className="bg-orange-500 text-white w-12 h-12 rounded-2xl shadow-xl flex items-center justify-center shrink-0 active:scale-95 transition pointer-events-auto"><Plus size={20} /></button>
+          <button onClick={() => setIsAddModalOpen(true)} className="bg-orange-500 text-white w-12 h-12 rounded-2xl shadow-xl flex items-center justify-center shrink-0 active:scale-95 transition pointer-events-auto border-2 border-white"><Plus size={20} /></button>
         </div>
 
         {/* 내 위치 버튼 */}
-        <button onClick={moveToMyLocation} className="absolute right-4 z-10 bg-white p-3 rounded-full shadow-xl border border-slate-200 active:scale-95 transition"
-          style={{ bottom: isMobile ? `calc(100vh - ${sheetY}px + 12px)` : '2rem' }}><Navigation size={22} className="text-slate-700" /></button>
+        <button onClick={moveToMyLocation} className="absolute right-4 z-10 bg-white p-3.5 rounded-full shadow-2xl border border-slate-200 active:bg-slate-50 active:scale-90 transition-all duration-200"
+          style={{ bottom: isMobile ? `calc(100vh - ${sheetY}px + 20px)` : '2rem' }}>
+          <Navigation size={22} className="text-slate-700" />
+        </button>
       </div>
 
-      {/* 📝 목록 & 상세 패널 (PC에서는 좌측 400px 고정) */}
+      {/* 📝 목록 & 상세 통합 바텀시트 섹션 */}
       <section
-        className={`z-20 bg-white shadow-2xl flex flex-col transition-all duration-300
-                    ${isMobile ? 'absolute left-0 right-0 bottom-0 rounded-t-3xl' : 'relative w-[400px] h-full shadow-none border-r border-slate-200'}`}
+        className={`z-20 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.12)] flex flex-col transition-all duration-300
+                    ${isMobile ? 'fixed left-0 right-0 bottom-0 rounded-t-[32px]' : 'relative w-[400px] h-full shadow-none border-r border-slate-200'}`}
         style={isMobile ? mobileSheetStyle : {}}
-        onTouchStart={blockMap} onTouchMove={blockMap} onTouchEnd={blockMap}
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
       >
-        {/* 모바일 핸들 */}
+        {/* 🌟 통합 핸들 (목록일 때나 상세일 때나 드래그 가능) */}
         {isMobile && (
-          <div className="w-full pt-4 pb-3 flex justify-center items-center shrink-0"
-               style={{ touchAction: 'none', cursor: 'ns-resize' }}
-               onTouchStart={onHandleTouchStart} onTouchMove={onHandleTouchMove} onTouchEnd={onHandleTouchEnd}>
+          <div className="sheet-handle-area w-full pt-4 pb-3 flex justify-center items-center shrink-0 select-none cursor-ns-resize">
             <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
           </div>
         )}
 
-        {/* 콘텐츠 영역 */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* 검색 + 카테고리 */}
-          <div className="px-4 pb-3 border-b border-slate-100 shrink-0 bg-white">
-            <div className="relative mt-2">
-              <Search className="absolute left-3 top-3 text-slate-400" size={16} />
-              <input type="text" placeholder="맛집 이름, 주소 검색..." className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border-none rounded-xl outline-none focus:ring-2 focus:ring-orange-400 text-sm" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+        {/* ── [Case 1] 식당 리스트 화면 ───────────────── */}
+        <div className={`flex-1 flex flex-col overflow-hidden ${selectedRes && isMobile ? 'hidden' : 'flex'}`}>
+          <div className="px-4 pb-3 border-b border-slate-50 shrink-0 bg-white">
+            <div className="relative mt-1">
+              <Search className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+              <input type="text" placeholder="맛집 이름, 주소 검색..." className="w-full pl-10 pr-4 py-3 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-orange-400 text-base lg:text-sm transition-all" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             </div>
-            <div className="flex gap-2 mt-3 overflow-x-auto pb-1 custom-scrollbar">
+            <div className="flex gap-2 mt-3 overflow-x-auto pb-1 no-scrollbar">
               {CATEGORIES.map(cat => (
-                <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition ${activeCategory === cat ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>{cat}</button>
+                <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition-all ${activeCategory === cat ? 'bg-orange-500 text-white border-orange-500 shadow-md' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50'}`}>{cat}</button>
               ))}
             </div>
           </div>
 
-          {/* 목록 영역 */}
-          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2 custom-scrollbar" style={{ overscrollBehavior: 'contain' }}>
+          <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5 bg-slate-50/30" onTouchStart={blockMap} style={{ overscrollBehavior: 'contain' }}>
             {activeCategory === '전체' && (
-              <button onClick={() => setSelectedRes(null)} className="w-full text-left p-4 rounded-2xl bg-blue-50 border border-blue-100 mb-2">
+              <button onClick={() => setSelectedRes(null)} className="w-full text-left p-4 rounded-3xl bg-blue-50 border border-blue-100 shadow-sm transition-all active:scale-95">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center"><Church size={16} className="text-blue-500" /></div>
-                  <div><h3 className="font-bold text-blue-900 text-sm">수유 성실교회</h3><p className="text-[11px] text-blue-400">우리들의 베이스캠프</p></div>
+                  <div className="w-10 h-10 bg-blue-100 rounded-2xl flex items-center justify-center shrink-0 shadow-inner"><Church size={18} className="text-blue-500" /></div>
+                  <div><h3 className="font-bold text-blue-900 text-sm">수유 성실교회</h3><p className="text-[11px] text-blue-400 font-medium">우리들의 베이스캠프 ⛪</p></div>
                 </div>
               </button>
             )}
             {filteredList.map(res => (
-              <div key={res.id} onClick={() => setSelectedRes(res)} className={`p-4 rounded-2xl cursor-pointer border-2 transition ${selectedRes?.id === res.id ? 'bg-orange-50 border-orange-400' : 'bg-white border-transparent shadow-sm hover:border-slate-200'}`}>
-                <div className="flex items-center justify-between mb-1.5">
+              <div key={res.id} onClick={() => setSelectedRes(res)} className={`p-4 rounded-3xl cursor-pointer border-2 transition-all active:scale-98 ${selectedRes?.id === res.id ? 'bg-orange-50 border-orange-400 shadow-md' : 'bg-white border-transparent shadow-sm hover:shadow-md'}`}>
+                <div className="flex items-center justify-between mb-2">
                   <h3 className="font-bold text-slate-900 text-sm truncate pr-2">{res.name}</h3>
-                  <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full shrink-0">{res.category}</span>
+                  <span className="text-[10px] bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full font-bold shrink-0">{res.category}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-0.5"><Star size={11} className="fill-orange-400 text-orange-400" /><span className="text-xs font-bold text-slate-600">{res.avgRating}</span></div>
-                  {distances[res.id] && <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-full">⛪ {distances[res.id] < 1000 ? `${Math.round(distances[res.id])}m` : `${(distances[res.id] / 1000).toFixed(1)}km`}</span>}
+                  <div className="flex items-center gap-0.5 bg-white border border-slate-100 px-2 py-0.5 rounded-full shadow-sm">
+                    <Star size={12} className="fill-orange-400 text-orange-400" />
+                    <span className="text-xs font-black text-slate-700">{res.avgRating}</span>
+                  </div>
+                  {distances[res.id] && <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">⛪ 교회에서 {Math.round(distances[res.id])}m</span>}
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* 🌟 식당 상세 패널 (PC에서는 리스트 위에 덮음, 모바일은 팝업) */}
+        {/* ── [Case 2] 식당 상세 정보 화면 ───────────────── */}
         {selectedRes && (
-          <div className={`absolute inset-0 z-30 bg-white flex flex-col transition-all duration-300
-                          ${isMobile ? 'rounded-t-3xl' : ''}`}>
-            <div className="flex justify-between items-center px-5 pt-5 pb-4 border-b shrink-0">
-              <div className="flex-1 min-w-0 pr-4">
-                <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded">{selectedRes.category}</span>
-                <h2 className="text-xl font-black text-slate-900 mt-1 truncate">{selectedRes.name}</h2>
+          <div className={`flex-1 flex flex-col overflow-hidden bg-white ${isMobile ? '' : 'absolute inset-0 z-30'}`}>
+            <div className="px-5 pt-2 pb-5 border-b border-slate-50 shrink-0">
+              <div className="flex justify-between items-start">
+                <div className="flex-1 min-w-0 pr-4">
+                  <span className="text-[11px] font-bold text-orange-600 bg-orange-100 px-2.5 py-1 rounded-lg">{selectedRes.category}</span>
+                  <h2 className="text-2xl font-black text-slate-900 mt-2 leading-tight truncate">{selectedRes.name}</h2>
+                  <div className="mt-3 space-y-1.5">
+                    <p className="text-xs text-slate-500 flex items-center gap-1.5 font-medium"><MapPin size={13} className="text-orange-400" />{selectedRes.address}</p>
+                    {distances[selectedRes.id] && <p className="text-xs font-bold text-blue-600 bg-blue-50 w-fit px-3 py-1 rounded-full shadow-sm flex items-center gap-1">⛪ 성실교회에서 {Math.round(distances[selectedRes.id])}m 거리에 위치</p>}
+                  </div>
+                </div>
+                <button onClick={() => setSelectedRes(null)} className="p-2.5 bg-slate-100 rounded-full hover:bg-slate-200 active:scale-90 transition-all"><X size={20} className="text-slate-500" /></button>
               </div>
-              <button onClick={() => setSelectedRes(null)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition"><X size={18} className="text-slate-500" /></button>
+
+              <div className="flex gap-2.5 mt-5">
+                <a href={`https://map.naver.com/v5/search/${encodeURIComponent(selectedRes.name + " 수유동")}`} target="_blank" rel="noreferrer" className="flex-1 bg-green-500 text-white py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition shadow-lg shadow-green-100"><MapIcon size={16} /> 길찾기</a>
+                <button onClick={() => setIsReviewModalOpen(true)} className="flex-1 bg-slate-900 text-white py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition shadow-lg shadow-slate-200"><MessageSquare size={16} /> 리뷰 남기기</button>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5 custom-scrollbar" style={{ overscrollBehavior: 'contain' }}>
-              <div className="space-y-1.5">
-                <p className="text-xs text-slate-500 flex items-center gap-1.5"><MapPin size={13} className="text-orange-400" />{selectedRes.address}</p>
-                {distances[selectedRes.id] && <p className="text-xs font-bold text-blue-600 bg-blue-50 w-fit px-2 py-1 rounded-lg">⛪ 성실교회에서 {Math.round(distances[selectedRes.id])}m 거리에 위치</p>}
-              </div>
-
-              <div className="flex gap-2">
-                <a href={`https://map.naver.com/v5/search/${encodeURIComponent(selectedRes.name + " 수유동")}`} target="_blank" rel="noreferrer" className="flex-1 bg-green-500 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition"><MapIcon size={14} /> 길찾기</a>
-                <button onClick={() => setIsReviewModalOpen(true)} className="flex-1 bg-slate-900 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition"><MessageSquare size={14} /> 리뷰 쓰기</button>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 space-y-4">
-                <h4 className="font-bold text-slate-800 text-sm">청년부 리뷰 ({selectedRes.reviews.length})</h4>
-                {selectedRes.reviews.length === 0 ? <p className="text-center text-slate-400 text-xs py-10">첫 리뷰를 남겨주세요!</p> :
-                  selectedRes.reviews.map((r, i) => (
-                    <div key={i} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-bold text-xs text-slate-700">{r.author}</span>
-                        <div className="flex">{[1,2,3,4,5].map(n => <Star key={n} size={10} className={n <= r.rating ? "fill-orange-400 text-orange-400" : "text-slate-200"} />)}</div>
-                      </div>
-                      <p className="text-xs text-slate-600 leading-relaxed">{r.comment}</p>
-                      <p className="text-[10px] text-slate-400 mt-2 text-right">{new Date(r.timestamp).toLocaleDateString()}</p>
+            <div ref={detailRef} className="flex-1 overflow-y-auto px-5 py-5 space-y-4 bg-slate-50/50" onTouchStart={blockMap} style={{ overscrollBehavior: 'contain' }}>
+              <h4 className="font-black text-slate-800 text-sm ml-1">청년부 리뷰 <span className="text-orange-500">{selectedRes.reviews.length}</span></h4>
+              {selectedRes.reviews.length === 0 ? <p className="text-center text-slate-400 text-xs py-14 font-medium">아직 리뷰가 없어요. <br/>첫 번째 리뷰의 주인공이 되어보세요! ✍️</p> :
+                selectedRes.reviews.map((r, i) => (
+                  <div key={i} className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="font-bold text-sm text-slate-800">{r.author}</span>
+                      <div className="flex gap-0.5">{[1,2,3,4,5].map(n => <Star key={n} size={11} className={n <= r.rating ? "fill-orange-400 text-orange-400" : "text-slate-200"} />)}</div>
                     </div>
-                  ))
-                }
-              </div>
+                    <p className="text-sm text-slate-600 leading-relaxed font-medium">{r.comment}</p>
+                    <p className="text-[10px] text-slate-400 mt-3.5 text-right font-bold">{new Date(r.timestamp).toLocaleDateString()}</p>
+                  </div>
+                ))
+              }
             </div>
           </div>
         )}
@@ -322,60 +364,74 @@ const App = () => {
 
       {/* ── 모달: 새 맛집 등록 ── */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center lg:items-center justify-center z-50 backdrop-blur-sm p-4">
-          <form onSubmit={handleAddRestaurant} className="bg-white rounded-[32px] w-full max-w-md flex flex-col shadow-2xl" style={{ maxHeight: '90vh' }}>
-            <div className="flex justify-between items-center px-6 py-5 border-b shrink-0">
-              <h2 className="text-lg font-black">새 맛집 제보하기</h2>
-              <button type="button" onClick={() => { setIsAddModalOpen(false); setSearchResults([]); setSearchKeyword(''); }}><X size={20} /></button>
+        <div className="fixed inset-0 bg-slate-900/70 flex items-center justify-center z-50 backdrop-blur-md p-4">
+          <form onSubmit={handleAddRestaurant} className="bg-white rounded-[40px] w-full max-w-md flex flex-col shadow-2xl border border-white/20" style={{ maxHeight: '90vh' }}>
+            <div className="flex justify-between items-center px-7 py-6 border-b shrink-0">
+              <h2 className="text-xl font-black text-slate-900">새 맛집 제보 🥘</h2>
+              <button type="button" onClick={() => { setIsAddModalOpen(false); setSearchResults([]); setSearchKeyword(''); }} className="p-1 hover:bg-slate-100 rounded-full transition-colors"><X size={24} /></button>
             </div>
-            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5 custom-scrollbar">
-              <div className="flex justify-end"><label className="flex items-center gap-2 text-xs font-bold text-slate-400 cursor-pointer"><input type="checkbox" className="w-4 h-4 rounded" checked={isManualAddress} onChange={(e) => setIsManualAddress(e.target.checked)} /> 직접 주소 입력</label></div>
+            <div className="overflow-y-auto flex-1 px-7 py-6 space-y-6 no-scrollbar">
+              <div className="flex justify-end"><label className="flex items-center gap-2 text-xs font-bold text-orange-500 cursor-pointer bg-orange-50 px-3 py-1.5 rounded-full"><input type="checkbox" className="w-4 h-4 rounded-md accent-orange-500" checked={isManualAddress} onChange={(e) => setIsManualAddress(e.target.checked)} /> 직접 주소 입력</label></div>
               {!isManualAddress ? (
-                <div className="bg-slate-50 p-4 rounded-2xl border space-y-3">
+                <div className="bg-slate-50 p-5 rounded-[28px] border border-slate-100 space-y-4 shadow-inner">
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider ml-1">식당 이름으로 검색</label>
                   <div className="flex gap-2">
-                    <input type="text" className="flex-1 p-3 bg-white rounded-xl border outline-none text-sm focus:border-orange-400" placeholder="식당 이름 검색" value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), searchPlaces())} />
-                    <button type="button" onClick={searchPlaces} className="px-4 py-2 bg-slate-800 text-white rounded-xl font-bold text-xs">{isSearching ? <Loader2 className="animate-spin" size={16}/> : '검색'}</button>
+                    <input type="text" className="flex-1 p-3.5 bg-white rounded-2xl border-none shadow-sm outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" placeholder="예: 수유리 우동집" value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), searchPlaces())} />
+                    <button type="button" onClick={searchPlaces} className="px-5 py-3.5 bg-slate-800 text-white rounded-2xl font-black text-xs active:scale-95 transition-all shadow-lg">{isSearching ? <Loader2 className="animate-spin" size={18}/> : '검색'}</button>
                   </div>
-                  {searchResults.length > 0 && <ul className="max-h-40 overflow-y-auto bg-white border rounded-xl divide-y custom-scrollbar">{searchResults.map(p => <li key={p.id} onClick={() => handleSelectPlace(p)} className="p-3 hover:bg-orange-50 cursor-pointer text-xs font-bold">{p.place_name}<br/><span className="text-[10px] font-normal text-slate-400">{p.address_name}</span></li>)}</ul>}
-                  {newRes.name && <div className="p-3 bg-orange-100 rounded-xl text-xs font-bold">{newRes.name}<br/><span className="font-normal">{newRes.address}</span></div>}
+                  {searchResults.length > 0 && <ul className="max-h-48 overflow-y-auto bg-white border border-slate-100 rounded-2xl divide-y no-scrollbar shadow-xl">{searchResults.map(p => <li key={p.id} onClick={() => handleSelectPlace(p)} className="p-4 hover:bg-orange-50 cursor-pointer transition-colors active:bg-orange-100"><div className="font-black text-sm text-slate-800">{p.place_name}</div><div className="text-[11px] font-bold text-slate-400 mt-1">{p.address_name}</div></li>)}</ul>}
+                  {newRes.name && <div className="p-4 bg-white rounded-2xl border-2 border-orange-400 shadow-md animate-pulse"><p className="font-black text-orange-600 text-sm">{newRes.name}</p><p className="text-[11px] text-slate-500 font-bold mt-1">{newRes.address}</p></div>}
                 </div>
               ) : (
-                <div className="space-y-3 p-4 bg-orange-50 rounded-2xl border border-orange-100">
-                  <input required className="w-full p-3 rounded-xl border text-sm" placeholder="식당 이름" value={newRes.name} onChange={e => setNewRes({...newRes, name: e.target.value})} />
-                  <input required className="w-full p-3 rounded-xl border text-sm" placeholder="도로명 주소" value={newRes.address} onChange={e => setNewRes({...newRes, address: e.target.value})} />
+                <div className="space-y-3 p-5 bg-orange-50/50 rounded-[28px] border-2 border-orange-100">
+                  <input required className="w-full p-4 rounded-2xl border-none shadow-sm outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" placeholder="식당 이름" value={newRes.name} onChange={e => setNewRes({...newRes, name: e.target.value})} />
+                  <input required className="w-full p-4 rounded-2xl border-none shadow-sm outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" placeholder="도로명 주소" value={newRes.address} onChange={e => setNewRes({...newRes, address: e.target.value})} />
                 </div>
               )}
-              <select className="w-full p-3 bg-slate-50 rounded-xl border text-sm" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>{CATEGORIES.filter(c => c !== '전체').map(c => <option key={c}>{c}</option>)}</select>
-              <div className="pt-4 border-t space-y-4">
-                <div className="flex gap-1.5 justify-center">{[1,2,3,4,5].map(i => <Star key={i} size={28} className={`cursor-pointer ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />)}</div>
-                <input required className="w-full p-3 bg-slate-50 rounded-xl border text-sm" placeholder="첫 한 줄 평" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})} />
-                <input required className="w-full p-3 bg-slate-50 rounded-xl border text-sm" placeholder="닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
+              <div className="space-y-4">
+                 <div>
+                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider ml-1">카테고리</label>
+                    <select className="w-full mt-2 p-4 bg-slate-50 rounded-2xl border-none shadow-sm outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" value={newRes.category} onChange={e => setNewRes({...newRes, category: e.target.value})}>{CATEGORIES.filter(c => c !== '전체').map(c => <option key={c}>{c}</option>)}</select>
+                 </div>
+                 <div className="pt-4 border-t border-slate-100 space-y-5">
+                    <p className="text-sm font-black text-slate-700 text-center">첫 번째 리뷰 남기기 ✨</p>
+                    <div className="flex gap-2.5 justify-center">
+                        {[1,2,3,4,5].map(i => <Star key={i} size={32} className={`cursor-pointer transition-all hover:scale-125 ${i <= newReview.rating ? 'fill-orange-400 text-orange-400 shadow-orange-100' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />)}
+                    </div>
+                    <input required className="w-full p-4 bg-slate-50 rounded-2xl border-none shadow-sm outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" placeholder="이 맛집의 한 줄 평은?" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})} />
+                    <input required className="w-full p-4 bg-slate-50 rounded-2xl border-none shadow-sm outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" placeholder="작성자 닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
+                 </div>
               </div>
             </div>
-            <div className="p-6 border-t shrink-0"><button type="submit" disabled={isSubmitting} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-bold shadow-lg">{isSubmitting ? <Loader2 className="animate-spin m-auto" size={20}/> : "지도에 추가하기 🚀"}</button></div>
+            <div className="p-7 border-t shrink-0 bg-slate-50/50 rounded-b-[40px]"><button type="submit" disabled={isSubmitting} className="w-full py-4.5 bg-orange-500 text-white rounded-[24px] font-black shadow-xl shadow-orange-200 active:scale-95 transition-all flex justify-center items-center gap-2">{isSubmitting ? <Loader2 className="animate-spin" size={20}/> : <>맛집 등록 완료 🚀</>}</button></div>
           </form>
         </div>
       )}
 
       {/* ── 모달: 리뷰 쓰기 ── */}
       {isReviewModalOpen && selectedRes && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 backdrop-blur-sm p-4">
-          <form onSubmit={handleReviewSubmit} className="bg-white rounded-[32px] w-full max-w-sm p-7 space-y-5 shadow-2xl">
-            <h2 className="text-lg font-black text-center">"{selectedRes.name}" 리뷰</h2>
-            <div className="flex gap-2.5 justify-center py-2">{[1,2,3,4,5].map(i => <Star key={i} size={36} className={`cursor-pointer ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />)}</div>
-            <textarea required className="w-full p-4 bg-slate-50 rounded-2xl border h-32 text-sm outline-none focus:border-orange-400" placeholder="솔직한 평가를 남겨주세요!" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})}></textarea>
-            <input required className="w-full p-4 bg-slate-50 rounded-2xl border text-sm outline-none focus:border-orange-400" placeholder="닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
-            <div className="flex gap-2 pt-2"><button type="button" onClick={() => setIsReviewModalOpen(false)} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm">취소</button><button type="submit" disabled={isSubmitting} className="flex-[2] py-3 bg-orange-500 text-white rounded-xl font-bold text-sm shadow-md">{isSubmitting ? <Loader2 className="animate-spin m-auto" size={18}/> : "등록하기"}</button></div>
+        <div className="fixed inset-0 bg-slate-900/70 flex items-center justify-center z-50 backdrop-blur-md p-4">
+          <form onSubmit={handleReviewSubmit} className="bg-white rounded-[40px] w-full max-w-sm p-8 space-y-6 shadow-2xl border border-white/20">
+            <h2 className="text-xl font-black text-center text-slate-800 leading-tight">"{selectedRes.name}" <br/>리뷰 남기기 ✍️</h2>
+            <div className="flex gap-2.5 justify-center py-2">
+              {[1,2,3,4,5].map(i => <Star key={i} size={38} className={`cursor-pointer transition-all hover:scale-125 ${i <= newReview.rating ? 'fill-orange-400 text-orange-400' : 'text-slate-200'}`} onClick={() => setNewReview({...newReview, rating: i})} />)}
+            </div>
+            <textarea required className="w-full p-4 bg-slate-50 rounded-[24px] border-none shadow-inner h-36 text-base lg:text-sm outline-none focus:ring-2 focus:ring-orange-400" placeholder="맛, 분위기, 서비스는 어땠나요? 솔직한 후기를 들려주세요!" value={newReview.comment} onChange={e => setNewReview({...newReview, comment: e.target.value})}></textarea>
+            <input required className="w-full p-4 bg-slate-50 rounded-2xl border-none shadow-inner text-base lg:text-sm outline-none focus:ring-2 focus:ring-orange-400" placeholder="닉네임" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
+            <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setIsReviewModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-sm active:bg-slate-200 transition-colors">취소</button>
+                <button type="submit" disabled={isSubmitting} className="flex-[2] py-4 bg-orange-500 text-white rounded-2xl font-black text-sm shadow-lg shadow-orange-100 active:scale-95 transition-all">{isSubmitting ? <Loader2 className="animate-spin mx-auto" size={20}/> : "리뷰 등록하기"}</button>
+            </div>
           </form>
         </div>
       )}
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .church-marker-label { background-color: white; color: #1e3a8a; font-size: 11px; padding: 4px 10px; border-radius: 8px; border: 2.5px solid #3b82f6; box-shadow: 0 4px 10px rgba(0,0,0,0.15); margin-top: -32px; white-space: nowrap; pointer-events: none; }
-        .restaurant-marker-label { background-color: white; color: #ea580c; font-size: 11px; padding: 4px 10px; border-radius: 8px; border: 2.5px solid #f97316; box-shadow: 0 4px 10px rgba(0,0,0,0.15); margin-top: -32px; white-space: nowrap; pointer-events: none; }
+        * { -webkit-tap-highlight-color: transparent; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .church-marker-label { background-color: white; color: #1e3a8a; font-size: 12px; padding: 4px 10px; border-radius: 10px; border: 2.5px solid #3b82f6; box-shadow: 0 4px 10px rgba(0,0,0,0.15); margin-top: -30px; white-space: nowrap; pointer-events: none; }
+        .restaurant-marker-label { background-color: white; color: #ea580c; font-size: 12px; padding: 4px 10px; border-radius: 10px; border: 2.5px solid #f97316; box-shadow: 0 4px 10px rgba(0,0,0,0.15); margin-top: -30px; white-space: nowrap; pointer-events: none; }
         input, select, textarea { font-size: 16px !important; }
       `}</style>
     </div>
