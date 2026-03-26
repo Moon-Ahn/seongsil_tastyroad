@@ -353,7 +353,7 @@ const App = () => {
               {!isManualAddress ? (
                 <div className="bg-slate-50 p-5 rounded-[28px] border border-slate-100 space-y-4 shadow-inner">
                   <div className="flex gap-2">
-                    <input type="text" className="flex-1 p-3.5 bg-white rounded-2xl border-none shadow-sm outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" placeholder="예: 수유리 우동집" value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), searchPlaces())} />
+                    <input type="text" className="flex-1 p-3.5 bg-white rounded-2xl border-none shadow-sm outline-none text-base lg:text-sm focus:ring-2 focus:ring-orange-400" placeholder="예: 더홀릭 수유점" value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), searchPlaces())} />
                     <button type="button" onClick={searchPlaces} className="px-5 py-3.5 bg-slate-800 text-white rounded-2xl font-black text-xs active:scale-95 transition-all shadow-lg">{isSearching ? <Loader2 className="animate-spin" size={18}/> : '검색'}</button>
                   </div>
                   {searchResults.length > 0 && <ul className="max-h-48 overflow-y-auto bg-white border border-slate-100 rounded-2xl divide-y no-scrollbar shadow-xl">{searchResults.map(p => <li key={p.id} onClick={() => handleSelectPlace(p)} className="p-4 hover:bg-orange-50 cursor-pointer active:bg-orange-100"><div className="font-black text-sm text-slate-800">{p.place_name}</div><div className="text-[11px] font-bold text-slate-400 mt-1">{p.address_name}</div></li>)}</ul>}
