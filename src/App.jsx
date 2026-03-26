@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 // 🌟 팀장님의 정확한 URL 고정
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxdChOl5CumYzkX-rjai2BpD91BQBH193NrKLL2RRIvxGKJFRx0_Si0zIFM_BClJA5M/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw9iIJhdFWfG70E8t0Gm0FwtATNMQiAusfY3uG2zlK3vQ9waszakr0jTQaG1n0iPkzh/exec";
 
 const App = () => {
   const [restaurants, setRestaurants] = useState([]);
