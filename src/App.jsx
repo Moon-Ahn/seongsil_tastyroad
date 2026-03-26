@@ -368,7 +368,7 @@ const App = () => {
             <div className="bg-gradient-to-br from-yellow-400 to-orange-500 p-8 text-center text-white relative">
               <button onClick={() => setIsRankModalOpen(false)} className="absolute top-4 right-4 bg-white/20 p-1.5 rounded-full hover:bg-white/30 transition-colors"><X size={20}/></button>
               <Trophy size={48} className="mx-auto mb-3 drop-shadow-lg" />
-              <h2 className="text-2xl font-black italic tracking-tighter">HALL OF FAME</h2>
+              <h2 className="text-2xl font-black italic tracking-tighter">THANK YOU</h2>
               <p className="text-sm font-bold opacity-90 mt-1">{new Date().getMonth() + 1}월의 맛집 전도사 TOP 3</p>
             </div>
             <div className="p-6 space-y-4">
@@ -380,7 +380,7 @@ const App = () => {
                 </div>
               )) : <p className="text-center text-slate-400 py-10 font-medium italic">아직 이번 달 리뷰가 없어요 🥲</p>}
             </div>
-            <div className="p-6 bg-slate-50 text-center border-t border-slate-100"><p className="text-[11px] text-slate-400 font-black uppercase tracking-widest">Seongsil Gourmet Community</p></div>
+            <div className="p-6 bg-slate-50 text-center border-t border-slate-100"><p className="text-[11px] text-slate-400 font-black uppercase tracking-widest">Seongsil Youth Community</p></div>
           </div>
         </div>
       )}
